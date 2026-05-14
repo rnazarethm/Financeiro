@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>💰 Controle Financeiro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
+<style>
+:root {
+  --green: #1a7a4a; --green-dark: #155f3a; --green-light: #e8f5ee;
+  --blue: #2563eb; --red: #dc2626; --yellow: #f59e0b;
+  --text: #111827; --muted: #6b7280; --border: #e5e7eb;
+  --bg: #f3f4f6; --card: #ffffff; --nav: 60px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* AUTH */
+.auth-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.auth-card { background: var(--card); border-radius: 16px; padding: 32px; max-width: 460px; width: 100%; box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+.auth-logo { font-size: 48px; text-align: center; margin-bottom: 8px; }
+.auth-title { font-size: 22px; font-weight: 700; text-align: center; margin-bottom: 4px; }
+.auth-sub { font-size: 13px; color: var(--muted); text-align: center; margin-bottom: 24px; }
+
+/* FORM */
+.fg { margin-bottom: 14px; }
+.fl { display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 5px; }
+.fi, .fs { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; color: var(--text); background: #fff; outline: none; transition: border-color .15s; }
+.fi:focus, .fs:focus { border-color: var(--green); }
+.fi-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* BUTTONS */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 11px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all .15s; }
+.btn-primary { background: var(--green); color: #fff; }
+.btn-primary:hover { background: var(--green-dark); }
+.btn-block { width: 100%; }
+.btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); }
+.btn-outline:hover { border-color: var(--green); color: var(--green); }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-danger:hover { opacity: .88; }
+.btn-sm { padding: 7px 14px; font-size: 13px; }
+.btn-icon { background: var(--green-light); border: none; color: var(--green); width: 34px; height: 34px; border-radius: 8px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+
+/* APP SHELL */
+#app { display: none; }
+.app-header { background: var(--green); color: #fff; padding: 0 16px; height: var(--nav); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+.app-title { font-size: 16px; font-weight: 700; }
+.hdr-btns { display: flex; gap: 8px; }
+.hdr-btn { background: rgba(255,255,255,.18); border: none; color: #fff; padding: 6px 11px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.hdr-btn:hover { background: rgba(255,255,255,.28); }
+
+.content { padding: 14px; padding-bottom: 80px; max-width: 820px; margin: 0 auto; }
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* BOTTOM NAV */
+.bnav { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid var(--border); display: flex; z-index: 100; }
+.nitem { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 8px 4px; cursor: pointer; color: var(--muted); font-size: 10px; font-weight: 600; gap: 2px; border: none; background: transparent; transition: color .15s; }
+.nitem.active { color: var(--green); }
+.nicon { font-size: 20px; }
+
+/* CARDS */
+.card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+.card-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
+.divider { height: 1px; background: var(--border); margin: 12px 0; }
+
+/* KPI GRID */
+.kgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.kpi { background: var(--card); border-radius: 12px; padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+.kpi.full { grid-column: 1 / -1; }
+.kpi.green { background: var(--green); }
+.kpi.green .kl, .kpi.green .kv, .kpi.green .ks { color: #fff; }
+.kpi.green .kl { opacity: .8; }
+.kpi.green .ks { opacity: .7; }
+.kl { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.kv { font-size: 22px; font-weight: 700; }
+.ks { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* PROGRESS */
+.prog-row { margin: 8px 0; }
+.prog-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.prog-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.prog-fill { height: 100%; border-radius: 4px; background: var(--green); transition: width .3s; }
+.prog-fill.warn { background: var(--yellow); }
+.prog-fill.over { background: var(--red); }
+
+/* RECENT */
+.ritem { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.ritem:last-child { border-bottom: none; }
+.rdesc { font-size: 14px; font-weight: 500; }
+.rmeta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.rval { font-size: 14px; font-weight: 700; color: var(--red); white-space: nowrap; }
+.rval.pos { color: var(--green); }
+
+/* MONTH NAV */
+.mnav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.mnav-title { font-size: 18px; font-weight: 700; }
+
+/* DIÁRIO TABLE */
+.dtable { width: 100%; }
+.dsection-hdr { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; padding: 10px 0 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px; display: flex; justify-content: space-between; }
+.drow { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+.drow:last-child { border-bottom: none; }
+.drow-val { font-weight: 600; }
+.drow-val.fut { color: var(--muted); font-style: italic; }
+.drow-val.pos { color: var(--green); }
+.drow-val.neg { color: var(--red); }
+
+/* DAY GRID */
+.daygrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-bottom: 14px; }
+.daycell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 7px; font-size: 9px; background: #fff; border: 1px solid var(--border); }
+.daycell.past { background: var(--green-light); border-color: transparent; }
+.daycell.today { background: var(--green); color: #fff; border-color: transparent; }
+.daycell.future { background: #f3f4f6; border-color: transparent; }
+.daycell.empty { background: transparent; border-color: transparent; }
+.dnum { font-weight: 700; font-size: 10px; }
+.dval { font-size: 8px; opacity: .75; }
+
+/* TOTALS */
+.tgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.titem { background: var(--bg); border-radius: 8px; padding: 10px; }
+.titem.pos { background: var(--green-light); }
+.titem.neg { background: #fee2e2; }
+.tlabel { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+.tvalue { font-size: 16px; font-weight: 700; margin-top: 3px; }
+.titem.pos .tvalue { color: var(--green); }
+.titem.neg .tvalue { color: var(--red); }
+
+/* TYPE SELECTOR */
+.tsel { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.tbtn { flex: 1; min-width: 70px; padding: 9px 6px; border: 2px solid var(--border); border-radius: 8px; background: #fff; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); text-align: center; transition: all .15s; }
+.tbtn.active { border-color: var(--green); color: var(--green); background: var(--green-light); }
+
+/* DASHBOARD TABS */
+.dtabs { display: flex; gap: 4px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 2px; }
+.dtab { padding: 6px 14px; border-radius: 20px; border: 1.5px solid var(--border); background: #fff; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.dtab.active { background: var(--green); color: #fff; border-color: var(--green); }
+
+/* CHARTS */
+.chart-box { position: relative; height: 220px; }
+.chart-box.tall { height: 280px; }
+.chart-box.short { height: 180px; }
+
+/* TABLE */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; background: var(--bg); font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+td { padding: 8px; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+.tr { text-align: right; font-weight: 600; }
+
+/* BADGE */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.badge-g { background: var(--green-light); color: var(--green); }
+.badge-r { background: #fee2e2; color: var(--red); }
+.badge-y { background: #fef3c7; color: #92400e; }
+
+/* SIMULADOR */
+.simcard { background: var(--card); border-radius: 12px; padding: 14px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06); border-left: 4px solid var(--green); }
+.simname { font-size: 15px; font-weight: 700; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+.sim-impacts { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.si { background: var(--bg); border-radius: 8px; padding: 8px; text-align: center; }
+.si-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+.si-val { font-size: 14px; font-weight: 700; margin-top: 2px; }
+.si-val.neg { color: var(--red); }
+.sim-items { font-size: 12px; color: var(--muted); }
+.sim-item-row { padding: 4px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+.sim-item-row:last-child { border-bottom: none; }
+
+/* TOAST */
+.toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #111; color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 14px; font-weight: 500; z-index: 999; opacity: 0; transition: opacity .3s; white-space: nowrap; pointer-events: none; }
+.toast.show { opacity: 1; }
+
+/* SETUP STEPS */
+.step { display: flex; gap: 12px; margin-bottom: 14px; }
+.step-num { width: 28px; height: 28px; background: var(--green); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.step-body { flex: 1; }
+.step-title { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+.step-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.step-code { font-family: monospace; background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 11px; color: var(--green-dark); }
+
+/* CONFIG screen */
+.config-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.config-item:last-child { border-bottom: none; }
+.config-label { font-size: 14px; font-weight: 500; }
+.config-sub { font-size: 11px; color: var(--muted); }
+.config-input { width: 120px; padding: 6px 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; text-align: right; outline: none; }
+.config-input:focus { border-color: var(--green); }
+
+@media (min-width: 600px) {
+  .kgrid { grid-template-columns: repeat(4, 1fr); }
+  .kpi.full { grid-column: auto; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== SETUP SCREEN ===== -->
+<div id="setup-screen" class="auth-wrap" style="display:none">
+  <div class="auth-card">
+    <div class="auth-logo">💰</div>
+    <div class="auth-title">Controle Financeiro</div>
+    <div class="auth-sub">Configure o app pela primeira vez</div>
+
+    <div class="fg">
+      <label class="fl">Google Client ID</label>
+      <input class="fi" id="s-clientid" placeholder="xxxxx.apps.googleusercontent.com">
+    </div>
+    <div class="fg">
+      <label class="fl">Spreadsheet ID</label>
+      <input class="fi" id="s-sheetid" placeholder="ID da URL do Google Sheets">
+    </div>
+
+    <div class="divider"></div>
+    <div class="card-title" style="margin-bottom:14px">Como obter essas informações</div>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Crie o Google Sheet</div>
+        <div class="step-desc">Faça upload do seu Excel no Google Drive → clique com botão direito → Abrir com Google Planilhas. Renomeie a aba principal para <span class="step-code">Gastos</span>. Crie mais duas abas: <span class="step-code">Config</span> e <span class="step-code">Simulacoes</span>.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">Crie o projeto no Google Cloud</div>
+        <div class="step-desc">Acesse <span class="step-code">console.cloud.google.com</span> → Novo projeto → Ative a API "Google Sheets API" → Vá em Credenciais → Criar credencial → ID do cliente OAuth 2.0 → Tipo: Aplicativo da Web. Adicione a URL do GitHub Pages em "Origens JavaScript autorizadas".</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">Copie os IDs</div>
+        <div class="step-desc">O <b>Client ID</b> aparece nas credenciais OAuth. O <b>Spreadsheet ID</b> está na URL do seu Sheet: <span class="step-code">docs.google.com/spreadsheets/d/<b>[ID AQUI]</b>/edit</span></div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-block" onclick="saveSetup()">Salvar e continuar →</button>
+  </div>
+</div>
+
+<!-- ===== LOGIN SCREEN ===== -->
+<div id="login-screen" class="auth-wrap" style="display:none">
+  <div class="auth-card">
+    <div class="auth-logo">💰</div>
+    <div class="auth-title">Controle Financeiro</div>
+    <div class="auth-sub">Entre com sua conta Google para acessar seus dados</div>
+    <button class="btn btn-primary btn-block" onclick="signIn()">🔑 Entrar com Google</button>
+    <div style="text-align:center; margin-top:12px">
+      <span style="font-size:12px; color:var(--muted); cursor:pointer" onclick="showSetup()">⚙ Reconfigurar app</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== LOADING ===== -->
+<div id="loading-screen" class="auth-wrap" style="display:none">
+  <div style="text-align:center; color:var(--muted)">
+    <div style="font-size:40px; margin-bottom:12px">⏳</div>
+    <div style="font-size:15px; font-weight:600">Carregando dados...</div>
+  </div>
+</div>
+
+<!-- ===== MAIN APP ===== -->
+<div id="app">
+  <header class="app-header">
+    <div class="app-title">💰 Controle Financeiro</div>
+    <div class="hdr-btns">
+      <button class="hdr-btn" onclick="refreshData()">↻</button>
+      <button class="hdr-btn" onclick="navigate('config')">⚙</button>
+    </div>
+  </header>
+
+  <div class="content">
+
+    <!-- HOJE -->
+    <div id="screen-hoje" class="screen">
+      <div id="hoje-content"></div>
+    </div>
+
+    <!-- DIÁRIO -->
+    <div id="screen-diario" class="screen">
+      <div class="mnav">
+        <button class="btn-icon" onclick="changeDiarioMonth(-1)">‹</button>
+        <div class="mnav-title" id="diario-month-label"></div>
+        <button class="btn-icon" onclick="changeDiarioMonth(1)">›</button>
+      </div>
+      <div id="diario-content"></div>
+    </div>
+
+    <!-- LANÇAR -->
+    <div id="screen-lancar" class="screen">
+      <div class="card">
+        <div class="card-title">Tipo de lançamento</div>
+        <div class="tsel">
+          <div class="tbtn active" onclick="setLancarType('diario',this)">📅 Diário</div>
+          <div class="tbtn" onclick="setLancarType('fixo',this)">📌 Fixo</div>
+          <div class="tbtn" onclick="setLancarType('parcela',this)">💳 Parcela</div>
+          <div class="tbtn" onclick="setLancarType('receita',this)">💰 Receita</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="fi-row">
+          <div class="fg">
+            <label class="fl">Valor (R$)</label>
+            <input class="fi" id="l-valor" type="number" step="0.01" placeholder="0,00">
+          </div>
+          <div class="fg" id="l-date-wrap">
+            <label class="fl">Data</label>
+            <input class="fi" id="l-data" type="date">
+          </div>
+        </div>
+
+        <div class="fg">
+          <label class="fl">Descrição</label>
+          <input class="fi" id="l-desc" placeholder="Ex: Almoço no Guilhermina">
+        </div>
+
+        <div class="fi-row" id="l-cat-wrap">
+          <div class="fg">
+            <label class="fl">Categoria</label>
+            <select class="fs" id="l-cat" onchange="updateSubcats()">
+              <option value="">Selecione...</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="fl">Subcategoria</label>
+            <select class="fs" id="l-subcat">
+              <option value="">Selecione...</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="l-parcelas-wrap" style="display:none">
+          <div class="fi-row">
+            <div class="fg">
+              <label class="fl">Nº de parcelas</label>
+              <input class="fi" id="l-nparcelas" type="number" min="1" placeholder="Ex: 12">
+            </div>
+            <div class="fg">
+              <label class="fl">Nome da parcela</label>
+              <input class="fi" id="l-parcela-nome" placeholder="Ex: Implante">
+            </div>
+          </div>
+        </div>
+
+        <div id="l-fixo-wrap" style="display:none">
+          <div class="fg">
+            <label class="fl">Nome do gasto fixo</label>
+            <input class="fi" id="l-fixo-nome" placeholder="Ex: Academia">
+          </div>
+        </div>
+
+        <div id="l-receita-wrap" style="display:none">
+          <div class="fg">
+            <label class="fl">Tipo de receita</label>
+            <select class="fs" id="l-receita-tipo">
+              <option value="Salário">Salário</option>
+              <option value="VA">Vale Alimentação</option>
+              <option value="VT">Vale Transporte</option>
+              <option value="Renda extra">Renda extra</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="lancarGasto()">✓ Registrar</button>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="screen-dashboard" class="screen">
+      <div class="dtabs">
+        <div class="dtab active" onclick="setDashTab('geral',this)">Visão Geral</div>
+        <div class="dtab" onclick="setDashTab('mes',this)">Mês Atual</div>
+        <div class="dtab" onclick="setDashTab('superf',this)">Supérfluos</div>
+        <div class="dtab" onclick="setDashTab('balanco',this)">Balanço</div>
+      </div>
+      <div id="dash-content"></div>
+    </div>
+
+    <!-- SIMULADOR -->
+    <div id="screen-simulador" class="screen">
+      <div id="sim-list"></div>
+      <div class="card">
+        <div class="card-title">Nova Simulação</div>
+        <div class="fg">
+          <label class="fl">Nome do cenário</label>
+          <input class="fi" id="sim-nome" placeholder="Ex: Se eu comprar o celular">
+        </div>
+        <div id="sim-gastos-list" style="margin-bottom:12px"></div>
+        <button class="btn btn-outline btn-sm" style="margin-bottom:12px" onclick="addSimGasto()">+ Adicionar gasto</button>
+        <button class="btn btn-primary btn-block" onclick="salvarSimulacao()">💾 Salvar simulação</button>
+      </div>
+    </div>
+
+    <!-- CONFIG -->
+    <div id="screen-config" class="screen">
+      <div class="card">
+        <div class="card-title">Parâmetros do Diário</div>
+        <div class="config-item">
+          <div><div class="config-label">Gasto diário estimado</div><div class="config-sub">Valor usado para dias futuros</div></div>
+          <input class="config-input" id="cfg-daily" type="number">
+        </div>
+        <div class="config-item">
+          <div><div class="config-label">Meta de gastos mensais</div><div class="config-sub">Limite que você não quer ultrapassar</div></div>
+          <input class="config-input" id="cfg-meta" type="number">
+        </div>
+        <div class="config-item">
+          <div><div class="config-label">Patrimônio base (R$)</div><div class="config-sub">Valor inicial do seu patrimônio</div></div>
+          <input class="config-input" id="cfg-patrimonio" type="number">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Entradas mensais</div>
+        <div class="config-item">
+          <div class="config-label">Salário</div>
+          <input class="config-input" id="cfg-salario" type="number">
+        </div>
+        <div class="config-item">
+          <div class="config-label">Vale Alimentação</div>
+          <input class="config-input" id="cfg-va" type="number">
+        </div>
+        <div class="config-item">
+          <div class="config-label">Vale Transporte</div>
+          <input class="config-input" id="cfg-vt" type="number">
+        </div>
+        <div class="config-item">
+          <div class="config-label">Outras entradas</div>
+          <input class="config-input" id="cfg-outras" type="number">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          Gastos Fixos
+          <button class="btn btn-sm btn-outline" onclick="addFixoField()">+ Adicionar</button>
+        </div>
+        <div id="cfg-fixos"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          Parcelas
+          <button class="btn btn-sm btn-outline" onclick="addParcelaField()">+ Adicionar</button>
+        </div>
+        <div id="cfg-parcelas"></div>
+      </div>
+
+      <button class="btn btn-primary btn-block" onclick="saveConfig()">💾 Salvar configurações</button>
+      <div style="margin-top:10px; text-align:center">
+        <span style="font-size:12px;color:var(--muted);cursor:pointer" onclick="showSetup()">Reconfigurar Client ID / Sheet ID</span>
+      </div>
+    </div>
+
+  </div><!-- end content -->
+
+  <nav class="bnav">
+    <button class="nitem active" id="nav-hoje" onclick="navigate('hoje')"><span class="nicon">🏠</span>Hoje</button>
+    <button class="nitem" id="nav-diario" onclick="navigate('diario')"><span class="nicon">📅</span>Diário</button>
+    <button class="nitem" id="nav-lancar" onclick="navigate('lancar')"><span class="nicon">➕</span>Lançar</button>
+    <button class="nitem" id="nav-dashboard" onclick="navigate('dashboard')"><span class="nicon">📊</span>Dashboard</button>
+    <button class="nitem" id="nav-simulador" onclick="navigate('simulador')"><span class="nicon">🧪</span>Simular</button>
+  </nav>
+</div><!-- end app -->
+
+<div id="toast" class="toast"></div>
+
+<script>
+// =====================================================================
+// STATE & CONSTANTS
+// =====================================================================
+let APP = {};         // from localStorage: clientId, spreadsheetId
+let allData = [];     // rows from Gastos sheet
+let sheetCfg = {};    // parsed Config sheet
+let sims = [];        // simulations
+let token = null;
+let tokenClient = null;
+let charts = {};
+let activeScreen = 'hoje';
+let dashTab = 'geral';
+let diarioMonth = new Date().getMonth() + 1;
+let diarioYear  = new Date().getFullYear();
+let lancarType  = 'diario';
+let simGastos   = [];
+
+const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const MSHORT  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+const CATS = {
+  'Alimentação':    ['Comida de Casa','Conveniência','Rotina'],
+  'Consumo Pessoal':['Bens e Acessórios','Cuidados Pessoais','Documentos e Taxas','Educação e Carreira','Presentes e Social'],
+  'Fixo':           ['Assinaturas Digitais','Casa','Celular','Fotos','Gympass'],
+  'Lazer':          ['Bar/Rolê','Comida/Restaurante','Ingressos/Taxas','Outros','Viagem'],
+  'Saúde':          ['Dentista','Remédio'],
+  'Transporte':     ['RioCard','Uber']
+};
+
+const CAT_COLORS = ['#06b6d4','#3b82f6','#6366f1','#8b5cf6','#ec4899','#f97316','#10b981','#84cc16'];
+
+// =====================================================================
+// UTILS
+// =====================================================================
+const fmt = v => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0);
+const fmtK = v => Math.abs(v)>=1000 ? `R$ ${(v/1000).toFixed(1)}k` : fmt(v);
+const fmtPct = v => `${(v*100).toFixed(0)}%`;
+
+function toast(msg, dur=2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function excelDateToJSDate(serial) {
+  if (!serial || isNaN(serial)) return null;
+  const d = new Date((Number(serial) - 25569) * 86400 * 1000);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function parseRowDate(raw) {
+  if (!raw) return null;
+  if (typeof raw === 'number') return excelDateToJSDate(raw);
+  const d = new Date(raw);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function dateToISO(d) {
+  if (!d) return '';
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function todayISO() { return dateToISO(new Date()); }
+
+// =====================================================================
+// GOOGLE AUTH
+// =====================================================================
+function initAuth() {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: APP.clientId,
+    scope: 'https://www.googleapis.com/auth/spreadsheets',
+    callback: async resp => {
+      if (resp.error) { toast('Erro no login: ' + resp.error); return; }
+      token = resp.access_token;
+      showLoading();
+      await loadAllData();
+      showApp();
+    }
+  });
+}
+
+function signIn() { tokenClient.requestAccessToken(); }
+
+// =====================================================================
+// SHEETS API
+// =====================================================================
+async function sheetsGet(range) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${APP.spreadsheetId}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE`;
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const j = await r.json();
+  return j.values || [];
+}
+
+async function sheetsAppend(range, values) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${APP.spreadsheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`;
+  await fetch(url, { method:'POST', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify({ values }) });
+}
+
+async function sheetsUpdate(range, values) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${APP.spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+  await fetch(url, { method:'PUT', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify({ values }) });
+}
+
+async function sheetsClear(range) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${APP.spreadsheetId}/values/${encodeURIComponent(range)}:clear`;
+  await fetch(url, { method:'POST', headers:{ Authorization:`Bearer ${token}` } });
+}
+
+// =====================================================================
+// DATA LOADING
+// =====================================================================
+async function loadAllData() {
+  // Load Gastos
+  const rows = await sheetsGet('Gastos!A:I');
+  if (rows.length > 1) {
+    allData = rows.slice(1).map(r => ({
+      valor:    parseFloat(r[0]) || 0,
+      data:     parseRowDate(r[1]),
+      dataISO:  r[1] ? (typeof r[1]==='number' ? dateToISO(excelDateToJSDate(r[1])) : String(r[1]).split('T')[0]) : '',
+      det:      r[2] || '',
+      mes:      r[3] || '',
+      nMes:     parseInt(r[4]) || 0,
+      cat:      r[5] || '',
+      subcat:   r[6] || '',
+      tipo:     r[7] || '',
+      ano:      parseInt(r[8]) || 0
+    })).filter(r => r.valor > 0 || r.tipo);
+  }
+
+  // Load Config
+  await loadConfig();
+
+  // Load Simulations
+  await loadSims();
+}
+
+async function loadConfig() {
+  const rows = await sheetsGet('Config!A:G');
+  sheetCfg = { settings:{}, fixos:[], parcelas:[] };
+  for (const r of rows) {
+    if (!r[0]) continue;
+    const type = String(r[0]).toUpperCase();
+    if (type === 'SETTING') sheetCfg.settings[r[1]] = isNaN(r[2]) ? r[2] : parseFloat(r[2]);
+    else if (type === 'FIXO') sheetCfg.fixos.push({ nome: r[1], valor: parseFloat(r[2])||0 });
+    else if (type === 'PARCELA') sheetCfg.parcelas.push({
+      nome: r[1], valor: parseFloat(r[2])||0,
+      anoIni: parseInt(r[3])||0, mesIni: parseInt(r[4])||0,
+      anoFim: parseInt(r[5])||0, mesFim: parseInt(r[6])||0
+    });
+  }
+  // defaults
+  if (!sheetCfg.settings.gasto_diario)   sheetCfg.settings.gasto_diario   = 60;
+  if (!sheetCfg.settings.meta_mensal)    sheetCfg.settings.meta_mensal    = 4500;
+  if (!sheetCfg.settings.patrimonio_base) sheetCfg.settings.patrimonio_base = 0;
+  if (!sheetCfg.settings.salario)        sheetCfg.settings.salario        = 0;
+  if (!sheetCfg.settings.va)             sheetCfg.settings.va             = 0;
+  if (!sheetCfg.settings.vt)             sheetCfg.settings.vt             = 0;
+  if (!sheetCfg.settings.outras)         sheetCfg.settings.outras         = 0;
+}
+
+async function loadSims() {
+  const rows = await sheetsGet('Simulacoes!A:C');
+  sims = [];
+  for (const r of rows) {
+    if (!r[0]) continue;
+    try { sims.push({ id: r[0], nome: r[1], gastos: JSON.parse(r[2]||'[]') }); }
+    catch(e) {}
+  }
+}
+
+async function refreshData() {
+  toast('Sincronizando...');
+  await loadAllData();
+  renderScreen(activeScreen);
+  toast('✓ Dados atualizados');
+}
+
+// =====================================================================
+// DATA HELPERS
+// =====================================================================
+function despesas() { return allData.filter(r => r.tipo === 'Despesa'); }
+
+function despesasMes(ano, mes) {
+  return despesas().filter(r => r.ano === ano && r.nMes === mes);
+}
+
+function totalMes(ano, mes) {
+  return despesasMes(ano, mes).reduce((s,r) => s+r.valor, 0);
+}
+
+function monthsWithData() {
+  const s = new Set();
+  despesas().forEach(r => { if (r.ano && r.nMes) s.add(`${r.ano}-${r.nMes}`); });
+  return [...s].map(k => { const [a,m] = k.split('-'); return { ano:parseInt(a), mes:parseInt(m) }; })
+    .sort((a,b) => a.ano*12+a.mes - (b.ano*12+b.mes));
+}
+
+function avgMonthly() {
+  const ms = monthsWithData();
+  if (!ms.length) return 0;
+  const total = ms.reduce((s,m) => s+totalMes(m.ano,m.mes), 0);
+  return total / ms.length;
+}
+
+function avgByCategory() {
+  const ms = monthsWithData();
+  const n = ms.length || 1;
+  const totals = {};
+  despesas().forEach(r => { totals[r.cat] = (totals[r.cat]||0) + r.valor; });
+  const avgs = {};
+  Object.keys(totals).forEach(c => avgs[c] = totals[c]/n);
+  return avgs;
+}
+
+function totalDaySpending(isoDate) {
+  return despesas().filter(r => r.dataISO === isoDate).reduce((s,r) => s+r.valor, 0);
+}
+
+function patrimonyNow() {
+  const base = sheetCfg.settings.patrimonio_base || 0;
+  const income = monthlyIncome();
+  const ms = monthsWithData();
+  let acc = base;
+  ms.forEach(m => {
+    const savings = income - totalMes(m.ano, m.mes) - fixosTotalMes(m.ano, m.mes) - parcelasTotalMes(m.ano, m.mes);
+    acc += savings;
+  });
+  return acc;
+}
+
+function monthlyIncome() {
+  const s = sheetCfg.settings;
+  return (s.salario||0) + (s.va||0) + (s.vt||0) + (s.outras||0);
+}
+
+function fixosTotalMes() {
+  return sheetCfg.fixos.reduce((s,f) => s+f.valor, 0);
+}
+
+function parcelasTotalMes(ano, mes) {
+  return sheetCfg.parcelas.filter(p => {
+    const cur = ano*12+mes, ini = p.anoIni*12+p.mesIni, fim = p.anoFim*12+p.mesFim;
+    return cur >= ini && cur <= fim;
+  }).reduce((s,p) => s+p.valor, 0);
+}
+
+function projectedYearSavings(year) {
+  const income = monthlyIncome();
+  const today = new Date();
+  let total = 0;
+  for (let m=1; m<=12; m++) {
+    const isPast = year < today.getFullYear() || (year === today.getFullYear() && m <= today.getMonth()+1);
+    const daily = isPast ? totalMes(year, m) : (sheetCfg.settings.gasto_diario||60) * new Date(year,m,0).getDate();
+    const fixo  = fixosTotalMes();
+    const parc  = parcelasTotalMes(year, m);
+    total += income - daily - fixo - parc;
+  }
+  return total;
+}
+
+// =====================================================================
+// SCREEN: HOJE
+// =====================================================================
+function renderHoje() {
+  const today = new Date();
+  const y = today.getFullYear(), m = today.getMonth()+1;
+  const todayISO_ = todayISO();
+  const todaySpend = totalDaySpending(todayISO_);
+  const monthSpend = totalMes(y, m);
+  const avg = avgMonthly();
+  const meta = sheetCfg.settings.meta_mensal || avg;
+  const dayEst = sheetCfg.settings.gasto_diario || 60;
+  const daysGone = today.getDate();
+  const daysTotal = new Date(y, m, 0).getDate();
+  const pctMonth = daysGone / daysTotal;
+  const pctBudget = monthSpend / meta;
+  const patrimony = patrimonyNow();
+  const projSavings = projectedYearSavings(y);
+
+  const recentDespesas = [...despesas()]
+    .filter(r => r.dataISO)
+    .sort((a,b) => b.dataISO.localeCompare(a.dataISO))
+    .slice(0, 6);
+
+  const todayClass = todaySpend > dayEst ? 'over' : (todaySpend > dayEst*0.8 ? 'warn' : '');
+  const monthClass = pctBudget > 1 ? 'over' : (pctBudget > 0.85 ? 'warn' : '');
+
+  document.getElementById('hoje-content').innerHTML = `
+    <div class="kgrid">
+      <div class="kpi green">
+        <div class="kl">Hoje</div>
+        <div class="kv">${fmtK(todaySpend)}</div>
+        <div class="ks">meta: ${fmt(dayEst)}/dia</div>
+      </div>
+      <div class="kpi">
+        <div class="kl">Este mês</div>
+        <div class="kv">${fmtK(monthSpend)}</div>
+        <div class="ks">média: ${fmtK(avg)}</div>
+      </div>
+      <div class="kpi">
+        <div class="kl">Patrimônio</div>
+        <div class="kv">${fmtK(patrimony)}</div>
+        <div class="ks">acumulado</div>
+      </div>
+      <div class="kpi">
+        <div class="kl">Projeção ${y}</div>
+        <div class="kv" style="color:${projSavings>=0?'var(--green)':'var(--red)'}">${fmtK(projSavings)}</div>
+        <div class="ks">economia anual</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Progresso do mês — ${MONTHS[m-1]}</div>
+      <div class="prog-row">
+        <div class="prog-labels"><span>⏱ Tempo</span><span>${Math.round(pctMonth*100)}% do mês</span></div>
+        <div class="prog-bar"><div class="prog-fill" style="width:${Math.min(pctMonth*100,100)}%"></div></div>
+      </div>
+      <div class="prog-row">
+        <div class="prog-labels"><span>💸 Gastos vs Meta</span><span>${fmt(monthSpend)} / ${fmt(meta)}</span></div>
+        <div class="prog-bar"><div class="prog-fill ${monthClass}" style="width:${Math.min(pctBudget*100,100)}%"></div></div>
+      </div>
+      <div class="prog-row">
+        <div class="prog-labels"><span>💸 Gastos vs Média</span><span>${fmt(monthSpend)} / ${fmt(avg)}</span></div>
+        <div class="prog-bar"><div class="prog-fill ${pctBudget>1?'over':''}" style="width:${Math.min((monthSpend/avg)*100,100)}%"></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Últimos lançamentos</div>
+      ${recentDespesas.map(r => `
+        <div class="ritem">
+          <div>
+            <div class="rdesc">${r.det}</div>
+            <div class="rmeta">${r.dataISO || ''} · ${r.cat}${r.subcat?' / '+r.subcat:''}</div>
+          </div>
+          <div class="rval">−${fmt(r.valor)}</div>
+        </div>
+      `).join('') || '<div style="color:var(--muted);font-size:14px;text-align:center;padding:16px">Nenhum lançamento ainda</div>'}
+    </div>
+  `;
+}
+
+// =====================================================================
+// SCREEN: DIÁRIO
+// =====================================================================
+function renderDiario() {
+  document.getElementById('diario-month-label').textContent = `${MONTHS[diarioMonth-1]} ${diarioYear}`;
+  const today = new Date();
+  const daysInMonth = new Date(diarioYear, diarioMonth, 0).getDate();
+  const dayEst = sheetCfg.settings.gasto_diario || 60;
+  const income = monthlyIncome();
+  const fixosTotal = fixosTotalMes();
+  const parcelasAtivas = sheetCfg.parcelas.filter(p => {
+    const cur = diarioYear*12+diarioMonth, ini = p.anoIni*12+p.mesIni, fim = p.anoFim*12+p.mesFim;
+    return cur >= ini && cur <= fim;
+  });
+  const parcelasTotal = parcelasAtivas.reduce((s,p)=>s+p.valor,0);
+
+  // Build day cells
+  const firstDay = new Date(diarioYear, diarioMonth-1, 1).getDay(); // 0=Sun
+  let dayCells = '';
+  const DOW = ['D','S','T','Q','Q','S','S'];
+  dayCells += DOW.map(d=>`<div class="daycell" style="font-size:9px;font-weight:700;color:var(--muted);background:transparent;border:none">${d}</div>`).join('');
+  for (let i=0; i<firstDay; i++) dayCells += `<div class="daycell empty"></div>`;
+
+  let dailyRealTotal = 0;
+  let dailyFutureTotal = 0;
+
+  for (let d=1; d<=daysInMonth; d++) {
+    const dateObj = new Date(diarioYear, diarioMonth-1, d);
+    const iso = dateToISO(dateObj);
+    const isToday = iso === todayISO();
+    const isPast = dateObj <= today;
+    let val, cls;
+    if (isPast) {
+      val = totalDaySpending(iso);
+      dailyRealTotal += val;
+      cls = isToday ? 'today' : 'past';
+    } else {
+      val = dayEst;
+      dailyFutureTotal += val;
+      cls = 'future';
+    }
+    const showVal = val > 0;
+    dayCells += `<div class="daycell ${cls}"><div class="dnum">${d}</div>${showVal?`<div class="dval">${val>=1000?(val/1000).toFixed(1)+'k':val.toFixed(0)}</div>`:''}</div>`;
+  }
+
+  const dailyTotal = dailyRealTotal + dailyFutureTotal;
+  const totalSaidas = fixosTotal + parcelasTotal + dailyTotal;
+  const economia = income - totalSaidas;
+  const pctGastos = income > 0 ? totalSaidas/income : 0;
+
+  let parcelasHTML = parcelasAtivas.length ? parcelasAtivas.map(p => {
+    const total_meses = (p.anoFim*12+p.mesFim) - (p.anoIni*12+p.mesIni) + 1;
+    const atual = (diarioYear*12+diarioMonth) - (p.anoIni*12+p.mesIni) + 1;
+    return `<div class="drow"><span class="drow-label">${p.nome} <span style="color:var(--muted);font-size:11px">(${atual}/${total_meses})</span></span><span class="drow-val">${fmt(p.valor)}</span></div>`;
+  }).join('') : `<div style="color:var(--muted);font-size:13px;padding:8px 0">Nenhuma parcela ativa</div>`;
+
+  document.getElementById('diario-content').innerHTML = `
+    <div class="card">
+      <div class="daygrid">${dayCells}</div>
+    </div>
+
+    <div class="card">
+      <div class="dsection-hdr"><span>Entradas</span><span style="color:var(--green)">${fmt(income)}</span></div>
+      <div class="drow"><span>Salário</span><span class="drow-val pos">${fmt(sheetCfg.settings.salario||0)}</span></div>
+      <div class="drow"><span>Vale Alimentação</span><span class="drow-val pos">${fmt(sheetCfg.settings.va||0)}</span></div>
+      <div class="drow"><span>Vale Transporte</span><span class="drow-val pos">${fmt(sheetCfg.settings.vt||0)}</span></div>
+      ${sheetCfg.settings.outras > 0 ? `<div class="drow"><span>Outras entradas</span><span class="drow-val pos">${fmt(sheetCfg.settings.outras)}</span></div>` : ''}
+    </div>
+
+    <div class="card">
+      <div class="dsection-hdr"><span>Gastos Fixos</span><span>${fmt(fixosTotal)}</span></div>
+      ${sheetCfg.fixos.map(f=>`<div class="drow"><span>${f.nome}</span><span class="drow-val">${fmt(f.valor)}</span></div>`).join('')||'<div style="color:var(--muted);font-size:13px;padding:8px 0">Configure em ⚙</div>'}
+    </div>
+
+    <div class="card">
+      <div class="dsection-hdr"><span>Parcelas</span><span>${fmt(parcelasTotal)}</span></div>
+      ${parcelasHTML}
+    </div>
+
+    <div class="card">
+      <div class="dsection-hdr"><span>Diário</span><span>${fmt(dailyTotal)}</span></div>
+      <div class="drow"><span>Realizado (dias passados)</span><span class="drow-val">${fmt(dailyRealTotal)}</span></div>
+      <div class="drow"><span>Estimado (dias futuros · R$${dayEst}/dia)</span><span class="drow-val fut">${fmt(dailyFutureTotal)}</span></div>
+    </div>
+
+    <div class="tgrid">
+      <div class="titem"><div class="tlabel">Total Entradas</div><div class="tvalue">${fmt(income)}</div></div>
+      <div class="titem"><div class="tlabel">Total Saídas</div><div class="tvalue">${fmt(totalSaidas)}</div></div>
+      <div class="titem ${economia>=0?'pos':'neg'}"><div class="tlabel">Economia do mês</div><div class="tvalue">${fmt(economia)}</div></div>
+      <div class="titem"><div class="tlabel">% Gastos</div><div class="tvalue">${fmtPct(pctGastos)}</div></div>
+    </div>
+  `;
+}
+
+function changeDiarioMonth(delta) {
+  diarioMonth += delta;
+  if (diarioMonth > 12) { diarioMonth = 1; diarioYear++; }
+  if (diarioMonth < 1)  { diarioMonth = 12; diarioYear--; }
+  renderDiario();
+}
+
+// =====================================================================
+// SCREEN: LANÇAR
+// =====================================================================
+function initLancar() {
+  const today = new Date();
+  document.getElementById('l-data').value = dateToISO(today);
+  const catSel = document.getElementById('l-cat');
+  catSel.innerHTML = '<option value="">Selecione...</option>';
+  Object.keys(CATS).forEach(c => {
+    const o = document.createElement('option');
+    o.value = c; o.textContent = c;
+    catSel.appendChild(o);
+  });
+}
+
+function updateSubcats() {
+  const cat = document.getElementById('l-cat').value;
+  const sub = document.getElementById('l-subcat');
+  sub.innerHTML = '<option value="">Selecione...</option>';
+  (CATS[cat]||[]).forEach(s => {
+    const o = document.createElement('option');
+    o.value = s; o.textContent = s;
+    sub.appendChild(o);
+  });
+}
+
+function setLancarType(type, el) {
+  lancarType = type;
+  document.querySelectorAll('.tbtn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('l-date-wrap').style.display = (type==='fixo'||type==='parcela') ? 'none' : '';
+  document.getElementById('l-parcelas-wrap').style.display = type==='parcela' ? '' : 'none';
+  document.getElementById('l-fixo-wrap').style.display = type==='fixo' ? '' : 'none';
+  document.getElementById('l-receita-wrap').style.display = type==='receita' ? '' : 'none';
+  document.getElementById('l-cat-wrap').style.display = (type==='fixo'||type==='parcela'||type==='receita') ? 'none' : '';
+}
+
+async function lancarGasto() {
+  const valor = parseFloat(document.getElementById('l-valor').value);
+  if (!valor || valor <= 0) { toast('⚠ Informe um valor válido'); return; }
+  const desc = document.getElementById('l-desc').value.trim();
+  if (!desc) { toast('⚠ Informe uma descrição'); return; }
+
+  if (lancarType === 'fixo') {
+    const nome = document.getElementById('l-fixo-nome').value.trim() || desc;
+    sheetCfg.fixos.push({ nome, valor });
+    await saveConfigToSheet();
+    toast('✓ Gasto fixo adicionado!');
+
+  } else if (lancarType === 'parcela') {
+    const n = parseInt(document.getElementById('l-nparcelas').value) || 1;
+    const nome = document.getElementById('l-parcela-nome').value.trim() || desc;
+    const today = new Date();
+    const anoIni = today.getFullYear(), mesIni = today.getMonth()+1;
+    let anoFim = anoIni, mesFim = mesIni + n - 1;
+    while (mesFim > 12) { mesFim -= 12; anoFim++; }
+    sheetCfg.parcelas.push({ nome, valor, anoIni, mesIni, anoFim, mesFim });
+    await saveConfigToSheet();
+    toast(`✓ Parcela adicionada (${n}x ${fmt(valor)})`);
+
+  } else if (lancarType === 'receita') {
+    const data = document.getElementById('l-data').value;
+    const [ano, mes] = data.split('-').map(Number);
+    const mesNome = MONTHS[mes-1];
+    await sheetsAppend('Gastos!A:I', [[valor, data, desc, mesNome, mes, 'Receita', document.getElementById('l-receita-tipo').value, 'Receita', ano]]);
+    toast('✓ Receita registrada!');
+
+  } else {
+    const data = document.getElementById('l-data').value;
+    if (!data) { toast('⚠ Informe a data'); return; }
+    const cat = document.getElementById('l-cat').value;
+    const sub = document.getElementById('l-subcat').value;
+    if (!cat) { toast('⚠ Selecione uma categoria'); return; }
+    const [ano, mes] = data.split('-').map(Number);
+    const mesNome = MONTHS[mes-1];
+    await sheetsAppend('Gastos!A:I', [[valor, data, desc, mesNome, mes, cat, sub, 'Despesa', ano]]);
+    toast('✓ Gasto registrado!');
+  }
+
+  // Reset form
+  document.getElementById('l-valor').value = '';
+  document.getElementById('l-desc').value = '';
+  await loadAllData();
+  renderHoje();
+}
+
+// =====================================================================
+// SCREEN: DASHBOARD
+// =====================================================================
+function setDashTab(tab, el) {
+  dashTab = tab;
+  document.querySelectorAll('.dtab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderDashboard();
+}
+
+function renderDashboard() {
+  const cont = document.getElementById('dash-content');
+  const cats = [...new Set(despesas().map(r=>r.cat))].filter(Boolean);
+  const catColors = {};
+  cats.forEach((c,i) => catColors[c] = CAT_COLORS[i % CAT_COLORS.length]);
+
+  if (dashTab === 'geral') {
+    const ms = monthsWithData();
+    const labels = ms.map(m => `${MSHORT[m.mes-1]}/${String(m.ano).slice(2)}`);
+    const values = ms.map(m => totalMes(m.ano, m.mes));
+    const avgLine = Array(ms.length).fill(avgMonthly());
+
+    // Category totals
+    const catTotals = {};
+    despesas().forEach(r => { catTotals[r.cat] = (catTotals[r.cat]||0) + r.valor; });
+    const sortedCats = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
+
+    cont.innerHTML = `
+      <div class="card">
+        <div class="card-title">Gasto por mês</div>
+        <div class="chart-box tall"><canvas id="ch-mensal"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Distribuição por categoria</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center">
+          <div class="chart-box" style="height:200px"><canvas id="ch-donut"></canvas></div>
+          <div>
+            ${sortedCats.map(([c,v]) => {
+              const pct = v / Object.values(catTotals).reduce((a,b)=>a+b,0);
+              return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;font-size:12px">
+                <div style="width:10px;height:10px;border-radius:50%;background:${catColors[c]};flex-shrink:0"></div>
+                <div style="flex:1">${c}</div>
+                <div style="font-weight:700">${Math.round(pct*100)}%</div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Médias mensais por categoria</div>
+        <div class="tbl-wrap">
+          <table>
+            <tr><th>Categoria</th><th class="tr">Média/mês</th><th class="tr">Total</th></tr>
+            ${sortedCats.map(([c,v])=>`<tr>
+              <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${catColors[c]};margin-right:6px"></span>${c}</td>
+              <td class="tr">${fmt(v/(monthsWithData().length||1))}</td>
+              <td class="tr">${fmt(v)}</td>
+            </tr>`).join('')}
+            <tr style="font-weight:700"><td>Total</td><td class="tr">${fmt(avgMonthly())}</td><td class="tr">${fmt(Object.values(catTotals).reduce((a,b)=>a+b,0))}</td></tr>
+          </table>
+        </div>
+      </div>
+    `;
+
+    destroyChart('mensal'); destroyChart('donut');
+    charts['mensal'] = new Chart(document.getElementById('ch-mensal'), {
+      type:'bar',
+      data:{ labels, datasets:[
+        { label:'Gasto', data:values, backgroundColor:'#1a7a4a', borderRadius:4 },
+        { label:'Média', data:avgLine, type:'line', borderColor:'#dc2626', borderDash:[5,3], borderWidth:2, pointRadius:0, fill:false }
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'bottom'} }, scales:{ y:{ ticks:{ callback:v=>`R$${(v/1000).toFixed(1)}k` } } } }
+    });
+    charts['donut'] = new Chart(document.getElementById('ch-donut'), {
+      type:'doughnut',
+      data:{ labels:sortedCats.map(([c])=>c), datasets:[{ data:sortedCats.map(([,v])=>v), backgroundColor:sortedCats.map(([c])=>catColors[c]), borderWidth:2 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} } }
+    });
+
+  } else if (dashTab === 'mes') {
+    const today = new Date();
+    const y=today.getFullYear(), m=today.getMonth()+1;
+    const avgs = avgByCategory();
+    const mesAtual = {};
+    despesasMes(y,m).forEach(r => { mesAtual[r.cat] = (mesAtual[r.cat]||0)+r.valor; });
+    const allCats = [...new Set([...Object.keys(avgs),...Object.keys(mesAtual)])].sort();
+    const daysGone = today.getDate(), daysTotal = new Date(y,m,0).getDate();
+    const pctTempo = daysGone/daysTotal;
+    const totalMesAtual = Object.values(mesAtual).reduce((a,b)=>a+b,0);
+    const meta = sheetCfg.settings.meta_mensal || avgMonthly();
+
+    cont.innerHTML = `
+      <div class="card">
+        <div class="card-title">Mês atual vs Média histórica — ${MONTHS[m-1]} ${y}</div>
+        <div style="display:flex;gap:16px;margin-bottom:12px;font-size:13px">
+          <div><span style="color:var(--muted)">⏱ Mês:</span> <b>${Math.round(pctTempo*100)}%</b> decorrido</div>
+          <div><span style="color:var(--muted)">💸 Total:</span> <b>${fmt(totalMesAtual)}</b></div>
+          <div><span style="color:var(--muted)">🎯 Meta:</span> <b>${fmt(meta)}</b></div>
+        </div>
+        <div class="chart-box tall"><canvas id="ch-catcomp"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Detalhe por categoria</div>
+        <div class="tbl-wrap"><table>
+          <tr><th>Categoria</th><th class="tr">Média</th><th class="tr">Este mês</th><th class="tr">%</th></tr>
+          ${allCats.map(c => {
+            const a = avgs[c]||0, cur = mesAtual[c]||0;
+            const pct = a>0 ? cur/a : null;
+            const badge = pct===null ? '' : pct>1 ? `<span class="badge badge-r">${fmtPct(pct)}</span>` : `<span class="badge badge-g">${fmtPct(pct)}</span>`;
+            return `<tr><td>${c}</td><td class="tr">${fmt(a)}</td><td class="tr">${fmt(cur)}</td><td class="tr">${badge}</td></tr>`;
+          }).join('')}
+        </table></div>
+      </div>
+    `;
+
+    destroyChart('catcomp');
+    charts['catcomp'] = new Chart(document.getElementById('ch-catcomp'), {
+      type:'bar',
+      data:{ labels:allCats, datasets:[
+        { label:'Média histórica', data:allCats.map(c=>avgs[c]||0), backgroundColor:'rgba(26,122,74,.25)', borderColor:'#1a7a4a', borderWidth:1.5, borderRadius:3 },
+        { label:'Mês atual', data:allCats.map(c=>mesAtual[c]||0), backgroundColor:'#1a7a4a', borderRadius:3 }
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'bottom'} }, scales:{ y:{ ticks:{ callback:v=>`R$ ${v.toFixed(0)}` } } } }
+    });
+
+  } else if (dashTab === 'superf') {
+    const ms = monthsWithData();
+    const labels = ms.map(m => `${MSHORT[m.mes-1]}/${String(m.ano).slice(2)}`);
+
+    function getSubcatByMonth(subcat) {
+      return ms.map(m => despesasMes(m.ano,m.mes).filter(r=>r.subcat===subcat).reduce((s,r)=>s+r.valor,0));
+    }
+
+    const uberData  = getSubcatByMonth('Uber');
+    const lancheData = getSubcatByMonth('Lanche').map((v,i)=>v||getSubcatByMonth('Bar/Rolê')[i]||0);
+    const uberAvg   = uberData.reduce((a,b)=>a+b,0)/(uberData.length||1);
+    const lancheAvg = lancheData.reduce((a,b)=>a+b,0)/(lancheData.length||1);
+
+    cont.innerHTML = `
+      <div class="card">
+        <div class="card-title">Uber — média: ${fmt(uberAvg)}/mês</div>
+        <div class="chart-box"><canvas id="ch-uber"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Lazer (Bar/Rolê) — média: ${fmt(lancheAvg)}/mês</div>
+        <div class="chart-box"><canvas id="ch-lanche"></canvas></div>
+      </div>
+    `;
+
+    ['uber','lanche'].forEach(id => destroyChart(id));
+    const commonOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{ticks:{callback:v=>`R$ ${v}`}}} };
+    charts['uber'] = new Chart(document.getElementById('ch-uber'), {
+      type:'bar', data:{ labels, datasets:[{ data:uberData, backgroundColor:uberData.map(v=>v>uberAvg?'#dc2626':'#6366f1'), borderRadius:3 }] }, options:commonOpts
+    });
+    charts['lanche'] = new Chart(document.getElementById('ch-lanche'), {
+      type:'bar', data:{ labels, datasets:[{ data:lancheData, backgroundColor:lancheData.map(v=>v>lancheAvg?'#dc2626':'#ec4899'), borderRadius:3 }] }, options:commonOpts
+    });
+
+  } else if (dashTab === 'balanco') {
+    const ms = monthsWithData();
+    const income = monthlyIncome();
+    const labels = ms.map(m => `${MSHORT[m.mes-1]}/${String(m.ano).slice(2)}`);
+    const balances = ms.map(m => income - totalMes(m.ano,m.mes) - fixosTotalMes() - parcelasTotalMes(m.ano,m.mes));
+    const base = sheetCfg.settings.patrimonio_base || 0;
+    const patrimony = [base];
+    balances.forEach(b => patrimony.push(patrimony[patrimony.length-1]+b));
+    patrimony.shift();
+    const totalGuardado = patrimony[patrimony.length-1] || base;
+
+    cont.innerHTML = `
+      <div class="kgrid">
+        <div class="kpi green"><div class="kl">Total guardado</div><div class="kv">${fmtK(totalGuardado)}</div></div>
+        <div class="kpi"><div class="kl">Balanço médio</div><div class="kv" style="color:${(balances.reduce((a,b)=>a+b,0)/balances.length)>=0?'var(--green)':'var(--red)'}">${fmtK(balances.reduce((a,b)=>a+b,0)/(balances.length||1))}</div><div class="ks">por mês</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Balanço mensal (economia − gastos)</div>
+        <div class="chart-box"><canvas id="ch-balanco"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Evolução do patrimônio</div>
+        <div class="chart-box"><canvas id="ch-patrim"></canvas></div>
+      </div>
+    `;
+
+    ['balanco','patrim'].forEach(id => destroyChart(id));
+    charts['balanco'] = new Chart(document.getElementById('ch-balanco'), {
+      type:'bar',
+      data:{ labels, datasets:[{ data:balances, backgroundColor:balances.map(v=>v>=0?'#1a7a4a':'#dc2626'), borderRadius:3 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{ticks:{callback:v=>`R$ ${(v/1000).toFixed(1)}k`}}} }
+    });
+    charts['patrim'] = new Chart(document.getElementById('ch-patrim'), {
+      type:'line',
+      data:{ labels, datasets:[{ data:patrimony, borderColor:'#1a7a4a', backgroundColor:'rgba(26,122,74,.1)', fill:true, tension:.3, pointRadius:3 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{ticks:{callback:v=>`R$ ${(v/1000).toFixed(1)}k`}}} }
+    });
+  }
+}
+
+// =====================================================================
+// SCREEN: SIMULADOR
+// =====================================================================
+function renderSimulador() {
+  simGastos = [];
+  renderSimGastosList();
+
+  const list = document.getElementById('sim-list');
+  if (!sims.length) {
+    list.innerHTML = `<div class="card" style="text-align:center;color:var(--muted);padding:24px"><div style="font-size:32px;margin-bottom:8px">🧪</div><div>Nenhuma simulação salva ainda</div></div>`;
+    return;
+  }
+  const income = monthlyIncome();
+  const projBase = projectedYearSavings(new Date().getFullYear());
+
+  list.innerHTML = sims.map((sim,i) => {
+    const impactoAnual = sim.gastos.reduce((s,g) => s + (g.valor * (g.parcelas||1)), 0);
+    const impactoMensal = sim.gastos.reduce((s,g) => s + g.valor, 0);
+    const novaEcon = projBase - impactoAnual;
+    return `
+      <div class="simcard">
+        <div class="simname">
+          <span>${sim.nome}</span>
+          <button class="btn btn-sm btn-danger" onclick="deleteSim(${i})">✕</button>
+        </div>
+        <div class="sim-impacts">
+          <div class="si"><div class="si-label">Impacto anual</div><div class="si-val neg">−${fmt(impactoAnual)}</div></div>
+          <div class="si"><div class="si-label">Impacto mensal</div><div class="si-val neg">−${fmt(impactoMensal)}</div></div>
+          <div class="si"><div class="si-label">Economia anual</div><div class="si-val" style="color:${novaEcon>=0?'var(--green)':'var(--red)'}">${fmt(novaEcon)}</div></div>
+        </div>
+        <div class="sim-items">
+          ${sim.gastos.map(g=>`<div class="sim-item-row"><span>${g.desc}${g.parcelas>1?` (${g.parcelas}x)`:''}</span><span>${fmt(g.valor)}/mês</span></div>`).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function addSimGasto() {
+  simGastos.push({ desc:'', valor:0, parcelas:1 });
+  renderSimGastosList();
+}
+
+function renderSimGastosList() {
+  document.getElementById('sim-gastos-list').innerHTML = simGastos.map((g,i) => `
+    <div style="display:grid;grid-template-columns:1fr 80px 60px 30px;gap:6px;margin-bottom:8px;align-items:center">
+      <input class="fi" placeholder="Descrição" value="${g.desc}" oninput="simGastos[${i}].desc=this.value">
+      <input class="fi" type="number" placeholder="Valor" value="${g.valor||''}" oninput="simGastos[${i}].valor=parseFloat(this.value)||0">
+      <input class="fi" type="number" placeholder="Parc." value="${g.parcelas||1}" title="Nº de parcelas" oninput="simGastos[${i}].parcelas=parseInt(this.value)||1">
+      <button class="btn-icon" style="background:#fee2e2;color:var(--red)" onclick="simGastos.splice(${i},1);renderSimGastosList()">✕</button>
+    </div>
+  `).join('') + (simGastos.length ? `<div style="font-size:11px;color:var(--muted)">Valor | Parcelas (ex: 3 = 3 meses)</div>` : '');
+}
+
+async function salvarSimulacao() {
+  const nome = document.getElementById('sim-nome').value.trim();
+  if (!nome) { toast('⚠ Dê um nome ao cenário'); return; }
+  if (!simGastos.length) { toast('⚠ Adicione pelo menos um gasto'); return; }
+  const id = Date.now();
+  const row = [id, nome, JSON.stringify(simGastos)];
+  await sheetsAppend('Simulacoes!A:C', [row]);
+  sims.push({ id, nome, gastos: simGastos });
+  document.getElementById('sim-nome').value = '';
+  simGastos = [];
+  toast('✓ Simulação salva!');
+  renderSimulador();
+}
+
+async function deleteSim(i) {
+  sims.splice(i, 1);
+  await sheetsClear('Simulacoes!A:C');
+  if (sims.length) await sheetsAppend('Simulacoes!A:C', sims.map(s=>[s.id, s.nome, JSON.stringify(s.gastos)]));
+  toast('Simulação removida');
+  renderSimulador();
+}
+
+// =====================================================================
+// SCREEN: CONFIG
+// =====================================================================
+function renderConfig() {
+  const s = sheetCfg.settings;
+  document.getElementById('cfg-daily').value     = s.gasto_diario||60;
+  document.getElementById('cfg-meta').value      = s.meta_mensal||4500;
+  document.getElementById('cfg-patrimonio').value = s.patrimonio_base||0;
+  document.getElementById('cfg-salario').value   = s.salario||0;
+  document.getElementById('cfg-va').value        = s.va||0;
+  document.getElementById('cfg-vt').value        = s.vt||0;
+  document.getElementById('cfg-outras').value    = s.outras||0;
+
+  const fixosDiv = document.getElementById('cfg-fixos');
+  fixosDiv.innerHTML = sheetCfg.fixos.map((f,i) => `
+    <div class="config-item">
+      <input class="fi" style="flex:1;margin-right:8px" value="${f.nome}" onchange="sheetCfg.fixos[${i}].nome=this.value">
+      <input class="config-input" type="number" value="${f.valor}" onchange="sheetCfg.fixos[${i}].valor=parseFloat(this.value)||0">
+      <button class="btn-icon" style="background:#fee2e2;color:var(--red);margin-left:6px" onclick="sheetCfg.fixos.splice(${i},1);renderConfig()">✕</button>
+    </div>
+  `).join('') || `<div style="color:var(--muted);font-size:13px;padding:10px 0">Nenhum fixo configurado</div>`;
+
+  const parcDiv = document.getElementById('cfg-parcelas');
+  parcDiv.innerHTML = sheetCfg.parcelas.map((p,i) => `
+    <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <input class="fi" style="flex:1" placeholder="Nome" value="${p.nome}" onchange="sheetCfg.parcelas[${i}].nome=this.value">
+        <input class="config-input" type="number" placeholder="Valor" value="${p.valor}" onchange="sheetCfg.parcelas[${i}].valor=parseFloat(this.value)||0">
+        <button class="btn-icon" style="background:#fee2e2;color:var(--red)" onclick="sheetCfg.parcelas.splice(${i},1);renderConfig()">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;font-size:12px">
+        <div><label class="fl">Ano ini</label><input class="fi" type="number" value="${p.anoIni}" onchange="sheetCfg.parcelas[${i}].anoIni=parseInt(this.value)"></div>
+        <div><label class="fl">Mês ini</label><input class="fi" type="number" min="1" max="12" value="${p.mesIni}" onchange="sheetCfg.parcelas[${i}].mesIni=parseInt(this.value)"></div>
+        <div><label class="fl">Ano fim</label><input class="fi" type="number" value="${p.anoFim}" onchange="sheetCfg.parcelas[${i}].anoFim=parseInt(this.value)"></div>
+        <div><label class="fl">Mês fim</label><input class="fi" type="number" min="1" max="12" value="${p.mesFim}" onchange="sheetCfg.parcelas[${i}].mesFim=parseInt(this.value)"></div>
+      </div>
+    </div>
+  `).join('') || `<div style="color:var(--muted);font-size:13px;padding:10px 0">Nenhuma parcela configurada</div>`;
+}
+
+function addFixoField() { sheetCfg.fixos.push({nome:'',valor:0}); renderConfig(); }
+function addParcelaField() {
+  const t=new Date();
+  sheetCfg.parcelas.push({nome:'',valor:0,anoIni:t.getFullYear(),mesIni:t.getMonth()+1,anoFim:t.getFullYear(),mesFim:t.getMonth()+1});
+  renderConfig();
+}
+
+async function saveConfig() {
+  sheetCfg.settings.gasto_diario    = parseFloat(document.getElementById('cfg-daily').value)||60;
+  sheetCfg.settings.meta_mensal     = parseFloat(document.getElementById('cfg-meta').value)||4500;
+  sheetCfg.settings.patrimonio_base = parseFloat(document.getElementById('cfg-patrimonio').value)||0;
+  sheetCfg.settings.salario         = parseFloat(document.getElementById('cfg-salario').value)||0;
+  sheetCfg.settings.va              = parseFloat(document.getElementById('cfg-va').value)||0;
+  sheetCfg.settings.vt              = parseFloat(document.getElementById('cfg-vt').value)||0;
+  sheetCfg.settings.outras          = parseFloat(document.getElementById('cfg-outras').value)||0;
+  await saveConfigToSheet();
+  toast('✓ Configurações salvas!');
+}
+
+async function saveConfigToSheet() {
+  const rows = [];
+  const s = sheetCfg.settings;
+  Object.keys(s).forEach(k => rows.push(['SETTING', k, s[k]]));
+  sheetCfg.fixos.forEach(f => rows.push(['FIXO', f.nome, f.valor]));
+  sheetCfg.parcelas.forEach(p => rows.push(['PARCELA', p.nome, p.valor, p.anoIni, p.mesIni, p.anoFim, p.mesFim]));
+  await sheetsClear('Config!A:G');
+  if (rows.length) await sheetsAppend('Config!A:G', rows);
+}
+
+// =====================================================================
+// NAVIGATION
+// =====================================================================
+function navigate(screen) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nitem').forEach(n => n.classList.remove('active'));
+  document.getElementById(`screen-${screen}`)?.classList.add('active');
+  document.getElementById(`nav-${screen}`)?.classList.add('active');
+  activeScreen = screen;
+  renderScreen(screen);
+}
+
+function renderScreen(screen) {
+  if (screen === 'hoje')      renderHoje();
+  else if (screen === 'diario')    renderDiario();
+  else if (screen === 'lancar')    initLancar();
+  else if (screen === 'dashboard') renderDashboard();
+  else if (screen === 'simulador') renderSimulador();
+  else if (screen === 'config')    renderConfig();
+}
+
+// =====================================================================
+// SCREEN VISIBILITY
+// =====================================================================
+function showSetup() {
+  document.getElementById('setup-screen').style.display='flex';
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('loading-screen').style.display='none';
+  document.getElementById('app').style.display='none';
+}
+function showLogin() {
+  document.getElementById('setup-screen').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('loading-screen').style.display='none';
+  document.getElementById('app').style.display='none';
+}
+function showLoading() {
+  document.getElementById('setup-screen').style.display='none';
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('loading-screen').style.display='flex';
+  document.getElementById('app').style.display='none';
+}
+function showApp() {
+  document.getElementById('setup-screen').style.display='none';
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('loading-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+  navigate('hoje');
+}
+
+// =====================================================================
+// SETUP
+// =====================================================================
+function saveSetup() {
+  const clientId = document.getElementById('s-clientid').value.trim();
+  const sheetId  = document.getElementById('s-sheetid').value.trim();
+  if (!clientId || !sheetId) { toast('⚠ Preencha os dois campos'); return; }
+  APP = { clientId, spreadsheetId: sheetId };
+  localStorage.setItem('financeApp', JSON.stringify(APP));
+  initAuth();
+  showLogin();
+}
+
+// =====================================================================
+// INIT
+// =====================================================================
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('financeApp');
+  if (saved) {
+    try {
+      APP = JSON.parse(saved);
+      initAuth();
+      showLogin();
+    } catch(e) { showSetup(); }
+  } else {
+    showSetup();
+  }
+});
+</script>
+</body>
+</html>
