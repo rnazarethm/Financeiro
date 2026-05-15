@@ -105,8 +105,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .cal-day.future{background:var(--bg);border-color:transparent;color:var(--muted)}
 .cal-day.empty{background:transparent;border-color:transparent;pointer-events:none}
 .cal-day.over-budget{background:rgba(192,57,43,.1);border-color:rgba(192,57,43,.25)}
-.cal-num{font-weight:700;font-size:10px;line-height:1}
-.cal-val{font-size:8px;opacity:.7;margin-top:1px}
+.cal-num{font-weight:700;font-size:13px;line-height:1}
+.cal-val{font-size:11px;opacity:.85;margin-top:3px;font-weight:600}
 
 /* ── DAY MODAL ────────────────────────────── */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-end;justify-content:center}
@@ -550,10 +550,11 @@ async function refreshData(){toast('Sincronizando...');await loadAllData();rende
 // ══════════════════════════════════════════════════════
 // DATA HELPERS
 // ══════════════════════════════════════════════════════
-function despesas(data){return(data||allData).filter(r=>r.tipo==='Despesa')}
+// Tipos possíveis em col H: Diario | Fixo | Parcela | Receita
+function despesas(data){return(data||allData).filter(r=>r.tipo!=='Receita')}
 function receitas(data){return(data||allData).filter(r=>r.tipo==='Receita')}
 function byMes(ano,mes,data){return(data||allData).filter(r=>r.ano===ano&&r.nMes===mes)}
-function despMes(ano,mes){return despesas().filter(r=>r.ano===ano&&r.nMes===mes)}
+function despMes(ano,mes){return allData.filter(r=>r.tipo!=='Receita'&&r.ano===ano&&r.nMes===mes)}
 function totMes(ano,mes){return despMes(ano,mes).reduce((s,r)=>s+r.valor,0)}
 
 // Income from DB first, then Config fallback
@@ -593,11 +594,13 @@ function avgByCat(){
 
 function daySpend(isoDate){return despesas().filter(r=>r.dataISO===isoDate).reduce((s,r)=>s+r.valor,0)}
 
-// Fixos do banco: linhas sem data, com nMes e ano exatamente iguais ao mês visualizado.
-function fixosDoMes(ano,mes){return despesas().filter(r=>r.dataISO===''&&r.ano===ano&&r.nMes===mes)}
+// Filtros diretos pelo tipo explícito da coluna H
+function fixosDoMes(ano,mes){return allData.filter(r=>r.tipo==='Fixo'&&r.ano===ano&&r.nMes===mes)}
 function fixosTotalDoMes(ano,mes){return fixosDoMes(ano,mes).reduce((s,r)=>s+r.valor,0)}
-// Gastos diários: linhas com data, filtrados por ano+mês
-function diarioDoMes(ano,mes){return despesas().filter(r=>r.dataISO!==''&&r.ano===ano&&r.nMes===mes)}
+function parcelasDoMes(ano,mes){return allData.filter(r=>r.tipo==='Parcela'&&r.ano===ano&&r.nMes===mes)}
+function parcelasTotalDoMes(ano,mes){return parcelasDoMes(ano,mes).reduce((s,r)=>s+r.valor,0)}
+function diarioDoMes(ano,mes){return allData.filter(r=>r.tipo==='Diario'&&r.ano===ano&&r.nMes===mes)}
+function diarioTotalDoMes(ano,mes){return diarioDoMes(ano,mes).reduce((s,r)=>s+r.valor,0)}
 
 function patrimonyAccum(){
   const base=sheetCfg.settings.patrimonio_base||0;
@@ -606,7 +609,7 @@ function patrimonyAccum(){
   const byM={};
   ms.forEach(m=>{
     const inc=incomeForMonth(m.ano,m.mes);
-    const exp=totMes(m.ano,m.mes)+fixosTotal()+parcelasTotal(m.ano,m.mes);
+    const exp=totMes(m.ano,m.mes); // já inclui Diario+Fixo+Parcela
     byM[`${m.ano}-${m.mes}`]=acc+(inc-exp);
     acc=byM[`${m.ano}-${m.mes}`]
   });
@@ -649,13 +652,13 @@ function renderDiarioMensal(){
   const inc=incomeForMonth(diarioYear,diarioMonth);
   const receitasMes=receitas().filter(r=>r.ano===diarioYear&&r.nMes===diarioMonth);
 
-  // — Fixos do banco de dados (sem data, mas com nMes e ano)
+  // — Fixos do banco (tipo==='Fixo')
   const fixosDB=fixosDoMes(diarioYear,diarioMonth);
   const ft=fixosDB.reduce((s,r)=>s+r.valor,0);
 
-  // — Parcelas do Config
-  const pt=parcelasTotal(diarioYear,diarioMonth);
-  const parcAtivas=parcelasAtivas(diarioYear,diarioMonth);
+  // — Parcelas do banco (tipo==='Parcela')
+  const parcDB=parcelasDoMes(diarioYear,diarioMonth);
+  const pt=parcDB.reduce((s,r)=>s+r.valor,0);
 
   // — Calendário: gasto real por dia
   let calCells='';
@@ -766,12 +769,22 @@ function renderDiarioMensal(){
     <!-- Parcelas -->
     <div class="card">
       <div class="sec-hdr"><span>Parcelas Ativas</span><span>${fmt(pt)}</span></div>
-      ${parcAtivas.length>0
-        ? parcAtivas.map(p=>{
-            const tot=(p.anoFim*12+p.mesFim)-(p.anoIni*12+p.mesIni)+1;
-            const cur=(diarioYear*12+diarioMonth)-(p.anoIni*12+p.mesIni)+1;
-            return`<div class="drow"><span>${p.nome}<span style="color:var(--muted);font-size:11px;margin-left:6px">${cur}/${tot}</span></span><span class="drow-val">${fmt(p.valor)}</span></div>`
-          }).join('')
+      ${parcDB.length>0
+        ? parcDB.map(p=>{
+            // Agrupa todas as linhas da mesma parcela pelo det para calcular X/Y
+            const todasLinhas=allData.filter(r=>r.tipo==='Parcela'&&r.det===p.det)
+              .sort((a,b)=>a.ano*12+a.nMes-(b.ano*12+b.nMes));
+            const total=todasLinhas.length;
+            const idx=todasLinhas.findIndex(r=>r.ano===diarioYear&&r.nMes===diarioMonth);
+            const cur=idx>=0?idx+1:'?';
+            return`<div class="drow">
+              <div>
+                <span style="font-weight:500">${p.det}</span>
+                <span style="color:var(--muted);font-size:11px;margin-left:6px">${cur}/${total}</span>
+                ${p.subcat?`<span style="color:var(--muted);font-size:11px;margin-left:4px">· ${p.subcat}</span>`:''}
+              </div>
+              <span class="drow-val">${fmt(p.valor)}</span>
+            </div>`}).join('')
         : '<div style="color:var(--muted);font-size:13px;padding:8px 0">Nenhuma parcela ativa</div>'}
     </div>
 
@@ -828,41 +841,52 @@ function renderDiarioAnual(){
   for(let m=1;m<=12;m++){const v=incomeForMonth(year,m);entTotal+=v;const cur=(year===curY&&m===curM);entRow+=`<td class="${cur?'cur-month':''}" style="color:var(--mid);font-weight:600">${fmt(v)}</td>`}
   entRow+=`<td style="color:var(--mid);font-weight:700">${fmt(entTotal)}</td>`;
 
-  // Fixos rows
+  // Fixos rows — agrupa por det, mostra qual mês tem linha no banco
   let fixoRows='';
-  sheetCfg.fixos.forEach(f=>{
-    let row=`<td>${f.nome}</td>`;let tot=0;
-    for(let m=1;m<=12;m++){const cur=(year===curY&&m===curM);row+=`<td class="${cur?'cur-month':''}">${fmt(f.valor)}</td>`;tot+=f.valor}
+  const allFixosAno=allData.filter(r=>r.tipo==='Fixo');
+  const fixoNomes=[...new Set(allFixosAno.map(r=>r.det))];
+  fixoNomes.forEach(nome=>{
+    const linhas=allFixosAno.filter(r=>r.det===nome);
+    let row=`<td>${nome}</td>`;let tot=0;
+    for(let m=1;m<=12;m++){
+      const cur=(year===curY&&m===curM);
+      const hasRow=linhas.find(r=>r.ano===year&&r.nMes===m);
+      if(hasRow){row+=`<td class="${cur?'cur-month':''}">${fmt(hasRow.valor)}</td>`;tot+=hasRow.valor}
+      else row+=`<td class="${cur?'cur-month ':''} parcela-inactive">—</td>`
+    }
     row+=`<td>${fmt(tot)}</td>`;fixoRows+=`<tr>${row}</tr>`
   });
 
-  // Parcelas rows
+  // Parcelas rows — agrupa por det, mostra meses com linha no banco
   let parcRows='';
-  sheetCfg.parcelas.forEach(p=>{
-    let row=`<td>${p.nome}</td>`;let tot=0;
+  const allParcAno=allData.filter(r=>r.tipo==='Parcela');
+  const parcNomes=[...new Set(allParcAno.map(r=>r.det))];
+  parcNomes.forEach(nome=>{
+    const linhas=allParcAno.filter(r=>r.det===nome);
+    let row=`<td>${nome}</td>`;let tot=0;
     for(let m=1;m<=12;m++){
       const cur=(year===curY&&m===curM);
-      const active=(year*12+m)>=(p.anoIni*12+p.mesIni)&&(year*12+m)<=(p.anoFim*12+p.mesFim);
-      if(active){row+=`<td class="${cur?'cur-month ':''}parcela-active">${fmt(p.valor)}</td>`;tot+=p.valor}
+      const hasRow=linhas.find(r=>r.ano===year&&r.nMes===m);
+      if(hasRow){row+=`<td class="${cur?'cur-month ':''}parcela-active">${fmt(hasRow.valor)}</td>`;tot+=hasRow.valor}
       else row+=`<td class="${cur?'cur-month ':''}" style="color:var(--border)">—</td>`
     }
     row+=`<td class="parcela-active">${fmt(tot)}</td>`;parcRows+=`<tr>${row}</tr>`
   });
 
-  // Diário rows
+  // Diário rows — só tipo=Diario; passado=real, atual=real+estimativa, futuro=estimativa
   let diarioRow=`<td>Diário (real/est.)</td>`;let diarTotal=0;
   for(let m=1;m<=12;m++){
     const isPast=(year<curY)||(year===curY&&m<curM);
     const isCur=(year===curY&&m===curM);
     let v;
-    if(isPast)v=totMes(year,m);
-    else if(isCur){const d=daySpend(todayISO());const rem=(daysInMonth(year,m)-today.getDate())*(sheetCfg.settings.gasto_diario||60);v=d+rem}
+    if(isPast)v=diarioTotalDoMes(year,m);
+    else if(isCur){const d=diarioTotalDoMes(year,m);const rem=(daysInMonth(year,m)-today.getDate())*(sheetCfg.settings.gasto_diario||60);v=d+rem}
     else v=(sheetCfg.settings.gasto_diario||60)*daysInMonth(year,m);
     diarTotal+=v;diarioRow+=`<td class="${isCur?'cur-month':''}">${fmt(v)}</td>`
   }
   diarioRow+=`<td>${fmt(diarTotal)}</td>`;
 
-  // Total saídas + economia
+  // Total saídas + economia — usa funções do banco
   let saidRow=`<td style="font-weight:700">Total Saídas</td>`,econRow=`<td style="font-weight:700">Economia</td>`,pctRow=`<td style="font-weight:700">% Gastos</td>`;
   let accumPatr=sheetCfg.settings.patrimonio_base||0;
   let patrimRow=`<td style="font-weight:700">Patrimônio</td>`;
@@ -870,10 +894,10 @@ function renderDiarioAnual(){
   for(let m=1;m<=12;m++){
     const isCur=(year===curY&&m===curM);
     const inc=incomeForMonth(year,m);
-    const ft=fixosTotal(),pt=parcelasTotal(year,m);
+    const ft=fixosTotalDoMes(year,m),pt=parcelasTotalDoMes(year,m);
     const isPast=(year<curY)||(year===curY&&m<curM),isCurM=isCur;
     let dVal;
-    if(isPast)dVal=totMes(year,m);
+    if(isPast)dVal=diarioTotalDoMes(year,m);
     else if(isCurM){const d=daySpend(todayISO());dVal=d+((daysInMonth(year,m)-today.getDate())*(sheetCfg.settings.gasto_diario||60))}
     else dVal=(sheetCfg.settings.gasto_diario||60)*daysInMonth(year,m);
     const saidas=ft+pt+dVal;
@@ -958,27 +982,37 @@ async function lancarGasto(){
   const desc=document.getElementById('l-desc').value.trim();
   if(!desc){toast('⚠ Informe uma descrição');return}
   if(lancarType==='fixo'){
-    const nome=document.getElementById('l-fixo-nome').value.trim()||desc;
-    sheetCfg.fixos.push({nome,valor});await saveConfigToSheet();toast('✓ Fixo adicionado!')
+    // Grava na aba Gastos com tipo=Fixo, sem data, para o mês atual
+    const t=new Date();const ano=t.getFullYear(),mes=t.getMonth()+1;
+    const cat=document.getElementById('l-cat').value||'Fixo';
+    const sub=document.getElementById('l-subcat').value;
+    await shAppend('Gastos!A:I',[[valor,'',desc,MONTHS[mes-1],mes,cat,sub,'Fixo',ano]]);
+    toast('✓ Fixo lançado no banco!')
   }else if(lancarType==='parcela'){
+    // Grava N linhas no Gastos (uma por mês) com tipo=Parcela
     const n=parseInt(document.getElementById('l-nparcelas').value)||1;
-    const nome=document.getElementById('l-parcela-nome').value.trim()||desc;
-    const t=new Date();const anoIni=t.getFullYear(),mesIni=t.getMonth()+1;
-    let anoFim=anoIni,mesFim=mesIni+n-1;
-    while(mesFim>12){mesFim-=12;anoFim++}
-    sheetCfg.parcelas.push({nome,valor,anoIni,mesIni,anoFim,mesFim});
-    await saveConfigToSheet();toast(`✓ Parcela ${n}x ${fmt(valor)} adicionada!`)
+    const cat=document.getElementById('l-cat').value||'Parcela';
+    const sub=document.getElementById('l-subcat').value;
+    const t=new Date();let ano=t.getFullYear(),mes=t.getMonth()+1;
+    const rows=[];
+    for(let i=0;i<n;i++){
+      rows.push([valor,'',desc,MONTHS[mes-1],mes,cat,sub,'Parcela',ano]);
+      mes++;if(mes>12){mes=1;ano++}
+    }
+    for(const row of rows)await shAppend('Gastos!A:I',[row]);
+    toast(`✓ Parcela ${n}x ${fmt(valor)} lançada!`)
   }else if(lancarType==='receita'){
     const data=document.getElementById('l-data').value;
     const[ano,mes]=data.split('-').map(Number);
     await shAppend('Gastos!A:I',[[valor,data,desc,MONTHS[mes-1],mes,'Receita',document.getElementById('l-receita-tipo').value,'Receita',ano]]);
     toast('✓ Receita registrada!')
   }else{
+    // Diário
     const data=document.getElementById('l-data').value;if(!data){toast('⚠ Data obrigatória');return}
     const cat=document.getElementById('l-cat').value;if(!cat){toast('⚠ Selecione a categoria');return}
     const sub=document.getElementById('l-subcat').value;
     const[ano,mes]=data.split('-').map(Number);
-    await shAppend('Gastos!A:I',[[valor,data,desc,MONTHS[mes-1],mes,cat,sub,'Despesa',ano]]);
+    await shAppend('Gastos!A:I',[[valor,data,desc,MONTHS[mes-1],mes,cat,sub,'Diario',ano]]);
     toast('✓ Gasto registrado!')
   }
   document.getElementById('l-valor').value='';document.getElementById('l-desc').value='';
@@ -1136,8 +1170,8 @@ function renderDashboard(){
   }else if(dashTab==='balanco'){
     const ms=monthsWithData();
     const labels=ms.map(m=>`${MSHORT[m.mes-1]}/${String(m.ano).slice(2)}`);
-    const balances=ms.map(m=>{const inc=incomeForMonth(m.ano,m.mes);const exp=totMes(m.ano,m.mes)+fixosTotal()+parcelasTotal(m.ano,m.mes);return inc-exp});
-    const pctGastos=ms.map(m=>{const inc=incomeForMonth(m.ano,m.mes);const exp=totMes(m.ano,m.mes)+fixosTotal()+parcelasTotal(m.ano,m.mes);return inc>0?Math.round(exp/inc*100):0});
+    const balances=ms.map(m=>{const inc=incomeForMonth(m.ano,m.mes);const exp=totMes(m.ano,m.mes);return inc-exp});
+    const pctGastos=ms.map(m=>{const inc=incomeForMonth(m.ano,m.mes);const exp=totMes(m.ano,m.mes);return inc>0?Math.round(exp/inc*100):0});
     const base=sheetCfg.settings.patrimonio_base||0;
     const patrim=[base];balances.forEach(b=>patrim.push(patrim[patrim.length-1]+b));patrim.shift();
     const totalG=patrim[patrim.length-1]||base;
@@ -1164,7 +1198,7 @@ function renderDashboard(){
         <div class="card-title">Histórico detalhado</div>
         <div class="tbl-wrap"><table class="data">
           <tr><th>Mês</th><th style="text-align:right">Entradas</th><th style="text-align:right">Saídas</th><th style="text-align:right">Economia</th><th style="text-align:right">% Gastos</th></tr>
-          ${ms.map((m,i)=>{const inc=incomeForMonth(m.ano,m.mes);const exp=totMes(m.ano,m.mes)+fixosTotal()+parcelasTotal(m.ano,m.mes);const ec=inc-exp;return`<tr><td>${MSHORT[m.mes-1]} ${m.ano}</td><td class="td-r">${fmt(inc)}</td><td class="td-r">${fmt(exp)}</td><td class="td-r" style="color:${ec>=0?'var(--mid)':'var(--red)'}">${fmt(ec)}</td><td class="td-r"><span class="badge ${pctGastos[i]>100?'badge-r':pctGastos[i]>85?'badge-o':'badge-g'}">${pctGastos[i]}%</span></td></tr>`}).join('')}
+          ${ms.map((m,i)=>{const inc=incomeForMonth(m.ano,m.mes);const exp=totMes(m.ano,m.mes);const ec=inc-exp;return`<tr><td>${MSHORT[m.mes-1]} ${m.ano}</td><td class="td-r">${fmt(inc)}</td><td class="td-r">${fmt(exp)}</td><td class="td-r" style="color:${ec>=0?'var(--mid)':'var(--red)'}">${fmt(ec)}</td><td class="td-r"><span class="badge ${pctGastos[i]>100?'badge-r':pctGastos[i]>85?'badge-o':'badge-g'}">${pctGastos[i]}%</span></td></tr>`}).join('')}
         </table></div>
       </div>
     `;
@@ -1175,7 +1209,7 @@ function renderDashboard(){
   }
 }
 
-function despesasMes_all(ano,mes){return despesas().filter(r=>r.ano===ano&&r.nMes===mes)}
+function despesasMes_all(ano,mes){return allData.filter(r=>r.tipo!=='Receita'&&r.ano===ano&&r.nMes===mes)}
 
 function showSuperfDetail(m,subcat){
   const items=despesasMes_all(m.ano,m.mes).filter(r=>r.subcat===subcat);
@@ -1251,7 +1285,7 @@ function renderLancamentos(){
       <td>${r.cat}</td>
       <td class="td-muted">${r.subcat||'—'}</td>
       <td>${r.det}</td>
-      <td><span class="badge ${r.tipo==='Receita'?'badge-g':'badge-r'}">${r.tipo}</span></td>
+      <td><span class="badge ${r.tipo==='Receita'?'badge-g':r.tipo==='Fixo'||r.tipo==='Parcela'?'badge-o':'badge-r'}">${r.tipo}</span></td>
       <td class="td-r" style="color:${r.tipo==='Receita'?'var(--mid)':'var(--red)'}">${r.tipo==='Receita'?'+':'−'}${fmt(r.valor)}</td>
     </tr>`).join('')}${data.length>200?`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:12px">Mostrando 200 de ${data.length} resultados. Refine os filtros.</td></tr>`:''}</tbody>
   `
