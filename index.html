@@ -226,6 +226,11 @@ table.data tr:last-child td{border-bottom:none}
 .cfg-input{width:110px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'Inter',sans-serif;text-align:right;outline:none}
 .cfg-input:focus{border-color:var(--mid)}
 
+/* ── SUM GRID 3 COL ───────────────────────── */
+.sum-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}
+.sum-grid-3 .sum-val{font-size:13px}
+.sum-grid-3 .sum-label{font-size:9px}
+
 /* ── MISC ─────────────────────────────────── */
 .empty{text-align:center;padding:32px;color:var(--muted)}
 .empty-icon{font-size:36px;margin-bottom:8px}
@@ -581,6 +586,12 @@ function avgByCat(){
 
 function daySpend(isoDate){return despesas().filter(r=>r.dataISO===isoDate).reduce((s,r)=>s+r.valor,0)}
 
+// Fixos do banco: linhas sem data, com nMes e ano exatamente iguais ao mês visualizado.
+function fixosDoMes(ano,mes){return despesas().filter(r=>r.dataISO===''&&r.ano===ano&&r.nMes===mes)}
+function fixosTotalDoMes(ano,mes){return fixosDoMes(ano,mes).reduce((s,r)=>s+r.valor,0)}
+// Gastos diários: linhas com data, filtrados por ano+mês
+function diarioDoMes(ano,mes){return despesas().filter(r=>r.dataISO!==''&&r.ano===ano&&r.nMes===mes)}
+
 function patrimonyAccum(){
   const base=sheetCfg.settings.patrimonio_base||0;
   const ms=monthsWithData();
@@ -626,75 +637,146 @@ function renderDiarioMensal(){
   const dayEst=sheetCfg.settings.gasto_diario||60;
   const dias=daysInMonth(diarioYear,diarioMonth);
   const firstDOW=new Date(diarioYear,diarioMonth-1,1).getDay();
+
+  // — Entradas
   const inc=incomeForMonth(diarioYear,diarioMonth);
-  const ft=fixosTotal();
+  const receitasMes=receitas().filter(r=>r.ano===diarioYear&&r.nMes===diarioMonth);
+
+  // — Fixos do banco de dados (sem data, mas com nMes e ano)
+  const fixosDB=fixosDoMes(diarioYear,diarioMonth);
+  const ft=fixosDB.reduce((s,r)=>s+r.valor,0);
+
+  // — Parcelas do Config
   const pt=parcelasTotal(diarioYear,diarioMonth);
   const parcAtivas=parcelasAtivas(diarioYear,diarioMonth);
 
+  // — Calendário: gasto real por dia
   let calCells='';
   const DOW=['D','S','T','Q','Q','S','S'];
   calCells+=DOW.map(d=>`<div class="cal-dow">${d}</div>`).join('');
   for(let i=0;i<firstDOW;i++)calCells+=`<div class="cal-day empty"></div>`;
 
-  let dailyReal=0,dailyFut=0;
+  let dailyReal=0,dailyFut=0,daysElapsed=0;
+  const isCurMonth=(diarioYear===today.getFullYear()&&diarioMonth===today.getMonth()+1);
+  const isPastMonth=(diarioYear<today.getFullYear())||(diarioYear===today.getFullYear()&&diarioMonth<today.getMonth()+1);
+
   for(let d=1;d<=dias;d++){
     const dateObj=new Date(diarioYear,diarioMonth-1,d);
     const iso=toISO(dateObj);
     const isToday=iso===todayISO_;
-    const isPast=dateObj<=today;
+    const isPast=dateObj<today||isToday;
     let val,cls,hasData=false;
-    if(isPast){val=daySpend(iso);dailyReal+=val;cls=isToday?'today':'past';hasData=val>0}
-    else{val=dayEst;dailyFut+=val;cls='future'}
+    if(isPast){
+      val=daySpend(iso);
+      dailyReal+=val;
+      daysElapsed++;
+      cls=isToday?'today':'past';
+      hasData=val>0;
+    }else{
+      val=dayEst;
+      dailyFut+=val;
+      cls='future';
+    }
     const overBudget=isPast&&val>dayEst*1.5;
     calCells+=`<div class="cal-day ${cls}${overBudget?' over-budget':''}${hasData?' has-data':''}" ${hasData?`onclick="openDayModal('${iso}','${d} de ${MONTHS[diarioMonth-1]}')"`:''}><div class="cal-num">${d}</div>${val>0?`<div class="cal-val">${val>=1000?(val/1000).toFixed(1)+'k':Math.round(val)}</div>`:''}</div>`
   }
 
-  const dailyTotal=dailyReal+dailyFut;
-  const totalSaidas=ft+pt+dailyTotal;
-  const economia=inc-totalSaidas;
-  const pctGastos=inc>0?totalSaidas/inc:0;
-  const meta=sheetCfg.settings.meta_mensal||avgMonthly();
+  // — Cálculos dos cards
+  // Gasto Previsto = fixos + parcelas + (real diário até hoje + estimativa dias futuros)
+  const gastoPrevisto=ft+pt+dailyReal+dailyFut;
+  // Gasto Até Hoje = fixos + parcelas + real diário até hoje
+  const gastoAteHj=ft+pt+dailyReal;
+  // Economia Prevista = entradas - gasto previsto
+  const economiaPrev=inc-gastoPrevisto;
+  // Média diária = real diário / dias decorridos
+  const mediaDiaria=daysElapsed>0?dailyReal/daysElapsed:0;
+  // % economizado = economia / entradas
+  const pctEcon=inc>0?economiaPrev/inc:0;
 
   document.getElementById('diario-content').innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <!-- Nav mês -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <button class="btn-icon" onclick="changeDiarioMonth(-1)">‹</button>
       <div style="font-size:17px;font-weight:700;color:var(--dark)">${MONTHS[diarioMonth-1]} ${diarioYear}</div>
       <button class="btn-icon" onclick="changeDiarioMonth(1)">›</button>
     </div>
-    <div class="card">
-      <div class="cal-grid">${calCells}</div>
-      <div style="font-size:11px;color:var(--muted);text-align:center">Clique num dia para ver os gastos · dias futuros = R$${dayEst} estimado</div>
-    </div>
-    <div class="card">
-      <div class="sec-hdr"><span>Entradas</span><span style="color:var(--mid);font-weight:700">${fmt(inc)}</span></div>
-      ${incomeForMonth(diarioYear,diarioMonth)===receitas().filter(r=>r.ano===diarioYear&&r.nMes===diarioMonth).reduce((s,r)=>s+r.valor,0)&&receitas().filter(r=>r.ano===diarioYear&&r.nMes===diarioMonth).length>0
-        ? receitas().filter(r=>r.ano===diarioYear&&r.nMes===diarioMonth).map(r=>`<div class="drow"><span>${r.det}</span><span class="drow-val pos">${fmt(r.valor)}</span></div>`).join('')
-        : `<div class="drow"><span>Salário + Benefícios (padrão)</span><span class="drow-val pos">${fmt(inc)}</span></div>`}
-    </div>
-    <div class="card">
-      <div class="sec-hdr"><span>Gastos Fixos</span><span>${fmt(ft)}</span></div>
-      ${sheetCfg.fixos.length?sheetCfg.fixos.map(f=>`<div class="drow"><span>${f.nome}</span><span class="drow-val">${fmt(f.valor)}</span></div>`).join(''):'<div style="color:var(--muted);font-size:13px;padding:8px 0">Configure em ⚙</div>'}
-    </div>
-    <div class="card">
-      <div class="sec-hdr"><span>Parcelas</span><span>${fmt(pt)}</span></div>
-      ${parcAtivas.length?parcAtivas.map(p=>{const tot=(p.anoFim*12+p.mesFim)-(p.anoIni*12+p.mesIni)+1;const cur=(diarioYear*12+diarioMonth)-(p.anoIni*12+p.mesIni)+1;return`<div class="drow"><span>${p.nome}<span style="color:var(--muted);font-size:11px;margin-left:6px">${cur}/${tot}</span></span><span class="drow-val">${fmt(p.valor)}</span></div>`}).join(''):'<div style="color:var(--muted);font-size:13px;padding:8px 0">Nenhuma parcela ativa</div>'}
-    </div>
-    <div class="card">
-      <div class="sec-hdr"><span>Diário</span><span>${fmt(dailyTotal)}</span></div>
-      <div class="drow"><span>Realizado</span><span class="drow-val">${fmt(dailyReal)}</span></div>
-      <div class="drow"><span>Estimado (dias futuros)</span><span class="drow-val muted">${fmt(dailyFut)}</span></div>
-    </div>
-    <div class="card">
-      <div class="prog-wrap">
-        <div class="prog-labels"><span>Gastos vs Meta (${fmt(meta)})</span><span>${fmt(totalSaidas)}</span></div>
-        <div class="prog-bar"><div class="prog-fill ${pctGastos>1?'over':pctGastos>.85?'warn':''}" style="width:${Math.min(pctGastos*100,100)}%"></div></div>
+
+    <!-- Cards linha 1 -->
+    <div class="sum-grid-3">
+      <div class="sum-item">
+        <div class="sum-label">Gasto Previsto</div>
+        <div class="sum-val">${fmtK(gastoPrevisto)}</div>
+      </div>
+      <div class="sum-item">
+        <div class="sum-label">Entradas</div>
+        <div class="sum-val pos">${fmtK(inc)}</div>
+      </div>
+      <div class="sum-item ${economiaPrev>=0?'accent':''}">
+        <div class="sum-label">Economia Prev.</div>
+        <div class="sum-val ${economiaPrev<0?'neg':''}">${fmtK(economiaPrev)}</div>
       </div>
     </div>
-    <div class="sum-grid">
-      <div class="sum-item"><div class="sum-label">Entradas</div><div class="sum-val pos">${fmt(inc)}</div></div>
-      <div class="sum-item"><div class="sum-label">Total Saídas</div><div class="sum-val">${fmt(totalSaidas)}</div></div>
-      <div class="sum-item ${economia>=0?'accent':''}"><div class="sum-label">Economia</div><div class="sum-val ${economia<0?'neg':''}">${fmt(economia)}</div></div>
-      <div class="sum-item"><div class="sum-label">% Gastos</div><div class="sum-val ora">${fmtPct(pctGastos)}</div></div>
+
+    <!-- Cards linha 2 -->
+    <div class="sum-grid-3" style="margin-bottom:14px">
+      <div class="sum-item">
+        <div class="sum-label">Gasto Até Hj</div>
+        <div class="sum-val">${fmtK(gastoAteHj)}</div>
+      </div>
+      <div class="sum-item">
+        <div class="sum-label">Média Diária</div>
+        <div class="sum-val ora">${fmtK(mediaDiaria)}</div>
+      </div>
+      <div class="sum-item">
+        <div class="sum-label">% Economizado</div>
+        <div class="sum-val ${pctEcon<0?'neg':'pos'}">${fmtPct(pctEcon)}</div>
+      </div>
+    </div>
+
+    <!-- Entradas -->
+    <div class="card">
+      <div class="sec-hdr"><span>Entradas</span><span style="color:var(--mid);font-weight:700">${fmt(inc)}</span></div>
+      ${receitasMes.length>0
+        ? receitasMes.map(r=>`<div class="drow"><span>${r.det}</span><span class="drow-val pos">${fmt(r.valor)}</span></div>`).join('')
+        : `<div class="drow"><span>Salário + Benefícios (padrão)</span><span class="drow-val pos">${fmt(inc)}</span></div>`}
+    </div>
+
+    <!-- Fixos do banco -->
+    <div class="card">
+      <div class="sec-hdr"><span>Gastos Fixos</span><span>${fmt(ft)}</span></div>
+      ${fixosDB.length>0
+        ? fixosDB.map(f=>`
+            <div class="drow">
+              <div>
+                <span style="font-weight:500">${f.det||f.cat}</span>
+                ${f.subcat?`<span style="color:var(--muted);font-size:11px;margin-left:6px">${f.subcat}</span>`:''}
+              </div>
+              <span class="drow-val">${fmt(f.valor)}</span>
+            </div>`).join('')
+        : '<div style="color:var(--muted);font-size:13px;padding:8px 0">Nenhum fixo encontrado neste mês no banco</div>'}
+    </div>
+
+    <!-- Parcelas -->
+    <div class="card">
+      <div class="sec-hdr"><span>Parcelas Ativas</span><span>${fmt(pt)}</span></div>
+      ${parcAtivas.length>0
+        ? parcAtivas.map(p=>{
+            const tot=(p.anoFim*12+p.mesFim)-(p.anoIni*12+p.mesIni)+1;
+            const cur=(diarioYear*12+diarioMonth)-(p.anoIni*12+p.mesIni)+1;
+            return`<div class="drow"><span>${p.nome}<span style="color:var(--muted);font-size:11px;margin-left:6px">${cur}/${tot}</span></span><span class="drow-val">${fmt(p.valor)}</span></div>`
+          }).join('')
+        : '<div style="color:var(--muted);font-size:13px;padding:8px 0">Nenhuma parcela ativa</div>'}
+    </div>
+
+    <!-- Calendário -->
+    <div class="card">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Calendário</div>
+      <div class="cal-grid">${calCells}</div>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:8px;font-size:10px;color:var(--muted)">
+        <span>● passado (real)</span>
+        <span style="color:var(--muted);opacity:.5">● futuro (est. R$${dayEst}/dia)</span>
+        <span style="color:var(--red)">● acima do limite</span>
+      </div>
     </div>
   `
 }
