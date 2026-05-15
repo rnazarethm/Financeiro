@@ -473,18 +473,25 @@ function initAuth(){
     scope:'https://www.googleapis.com/auth/spreadsheets',
     callback:async r=>{
       if(r.error){toast('Erro no login: '+r.error);return}
-      token=r.access_token;showLoading();
+      token=r.access_token;
+      // Salva token com expiração (Google emite tokens de 1h = 3600s)
+      const exp=Date.now()+(r.expires_in||3600)*1000;
+      localStorage.setItem('finToken',token);
+      localStorage.setItem('finTokenExp',String(exp));
+      showLoading();
       await loadAllData();showApp()
     }
   })
 }
 function signIn(){tokenClient.requestAccessToken()}
+function clearToken(){localStorage.removeItem('finToken');localStorage.removeItem('finTokenExp');token=null}
 
 // ══════════════════════════════════════════════════════
 // SHEETS API
 // ══════════════════════════════════════════════════════
 async function shGet(range){
   const r=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${APP.spreadsheetId}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE`,{headers:{Authorization:`Bearer ${token}`}});
+  if(r.status===401){clearToken();showLogin();toast('Sessão expirada — faça login novamente');throw new Error('401')}
   return(await r.json()).values||[]
 }
 async function shAppend(range,values){
@@ -1393,10 +1400,25 @@ function saveSetup(){
   initAuth();showLogin()
 }
 
-window.addEventListener('load',()=>{
+window.addEventListener('load',async()=>{
   const saved=localStorage.getItem('finCfg');
-  if(saved){try{APP=JSON.parse(saved);initAuth();showLogin()}catch(e){showSetup()}}
-  else showSetup()
+  if(!saved){showSetup();return}
+  try{
+    APP=JSON.parse(saved);
+    initAuth(); // inicializa tokenClient (necessário para re-auth futuro)
+    // Verifica se há token válido salvo (com 2 min de margem)
+    const savedToken=localStorage.getItem('finToken');
+    const savedExp=parseInt(localStorage.getItem('finTokenExp')||'0');
+    if(savedToken&&savedExp>Date.now()+120000){
+      token=savedToken;
+      showLoading();
+      try{await loadAllData();showApp()}
+      catch(e){if(e.message!=='401'){clearToken();showLogin()}}
+    }else{
+      clearToken();
+      showLogin()
+    }
+  }catch(e){showSetup()}
 })
 </script>
 </body>
