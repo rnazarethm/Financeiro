@@ -657,7 +657,8 @@ function avgMonthly(data){
 
 function avgByCat(){
   const ms=monthsWithData();const n=ms.length||1;const tot={};
-  despesas().forEach(r=>{tot[r.cat]=(tot[r.cat]||0)+r.valor});
+  const validKeys=new Set(ms.map(m=>`${m.ano}-${m.mes}`));
+  despesas().filter(r=>validKeys.has(`${r.ano}-${r.nMes}`)).forEach(r=>{tot[r.cat]=(tot[r.cat]||0)+r.valor});
   const avg={};Object.keys(tot).forEach(c=>avg[c]=tot[c]/n);return avg
 }
 
