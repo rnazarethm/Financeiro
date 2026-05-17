@@ -155,6 +155,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .ay-hm-today{background:var(--dark)!important;border-radius:50%!important}
 .ay-hm-leg{display:flex;gap:12px;align-items:center;justify-content:center;padding:2px 10px 10px;font-size:9px;color:var(--muted);flex-wrap:wrap}
 .ay-hm-dot{display:inline-block;width:8px;height:8px;border-radius:1.5px;margin-right:3px;vertical-align:middle}
+.ay-hm-stats{display:flex;justify-content:center;gap:5px;margin-top:4px;font-size:7px;font-weight:700;flex-wrap:wrap;line-height:1.4}
 
 /* ── DIÁRIO SUMMARY ───────────────────────── */
 .sum-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
@@ -868,9 +869,52 @@ function renderDiarioAnual(){
 
   const isCurM=m=>year===curY&&m===curM;
   const isPastM=m=>(year<curY)||(year===curY&&m<curM);
-  const hasDataM=m=>isPastM(m)||isCurM(m);
+  const isFutM=m=>(year>curY)||(year===curY&&m>curM);
+  const hasDataM=m=>!isFutM(m);
 
-  // ─── Shared month header strip ────────────────────────
+  // Pre-compute DB slices
+  const fixosAno=allData.filter(r=>r.tipo==='Fixo'&&r.ano===year);
+  const fixoNomes=[...new Set(fixosAno.map(r=>r.det))];
+  const allParcDB=allData.filter(r=>r.tipo==='Parcela');
+  const parcNomes=[...new Set(allParcDB.filter(r=>r.ano===year).map(r=>r.det))];
+
+  // Fixo: last known value for a det (for estimation)
+  const fixoUltimoValor=det=>{
+    const rows=allData.filter(r=>r.tipo==='Fixo'&&r.det===det)
+      .sort((a,b)=>b.ano*12+b.nMes-(a.ano*12+a.nMes));
+    return rows.length?rows[0].valor:0;
+  };
+
+  // Estimated total fixos for a month (real if exists, else last known)
+  const estimaFixosMes=m=>{
+    const rows=fixosAno.filter(r=>r.nMes===m);
+    if(rows.length)return rows.reduce((s,r)=>s+r.valor,0);
+    return fixoNomes.reduce((s,det)=>s+fixoUltimoValor(det),0);
+  };
+
+  // Total expense for a month: real for past, estimated for current/future
+  const totalExpEstimado=m=>{
+    if(isPastM(m))return totMes(year,m);
+    const fixEst=estimaFixosMes(m);
+    const parcEst=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+r.valor,0);
+    if(isCurM(m)){
+      const actDiar=diarioTotalDoMes(year,m);
+      const actFixos=fixosTotalDoMes(year,m);
+      const actParc=parcelasTotalDoMes(year,m);
+      const remDays=(daysInMonth(year,m)-today.getDate())*dayLimit;
+      return(actFixos||fixEst)+(actParc||parcEst)+actDiar+remDays;
+    }
+    return fixEst+parcEst+(dayLimit*daysInMonth(year,m));
+  };
+
+  // Annual summary cards (past + current only)
+  let anoRec=0,anoDesp=0;
+  for(let m=1;m<=12;m++){
+    if(hasDataM(m)){anoRec+=incomeForMonth(year,m);anoDesp+=totMes(year,m)}
+  }
+  const anoEcon=anoRec>0?(anoRec-anoDesp)/anoRec:0;
+
+  // Shared month header strip
   const mHdrs=MSHORT.map((s,i)=>{
     const m=i+1;
     return`<div class="ay-hdr${isCurM(m)?' ay-cur-hdr':''}">${s}</div>`;
@@ -888,39 +932,44 @@ function renderDiarioAnual(){
     </div>`;
   }).join('');
 
-  // ─── 2. GASTOS FIXOS ──────────────────────────────────
-  const fixosAno=allData.filter(r=>r.tipo==='Fixo'&&r.ano===year);
-  const fixoNomes=[...new Set(fixosAno.map(r=>r.det))];
+  // ─── 2. GASTOS FIXOS (with future estimation) ────────
   let fixoGridInner='';
-  fixoNomes.forEach((nome,ri)=>{
-    const alt=ri%2===1;const linhas=fixosAno.filter(r=>r.det===nome);
-    fixoGridInner+=`<div class="ay-lbl${alt?' ay-alt':''}" style="font-size:10px">${nome}</div>`;
+  fixoNomes.forEach((det,ri)=>{
+    const alt=ri%2===1;
+    const linhas=fixosAno.filter(r=>r.det===det);
+    fixoGridInner+=`<div class="ay-lbl${alt?' ay-alt':''}" style="font-size:10px">${det}</div>`;
     for(let m=1;m<=12;m++){
       const row=linhas.find(r=>r.nMes===m);
-      fixoGridInner+=`<div class="ay-cell${alt?' ay-alt':''}${isCurM(m)?' ay-cur':''}">
-        ${row?`<span class="ay-v">${fmtK(row.valor)}</span>`:`<span class="ay-dash">—</span>`}
-      </div>`;
+      if(row){
+        fixoGridInner+=`<div class="ay-cell${alt?' ay-alt':''}${isCurM(m)?' ay-cur':''}">
+          <span class="ay-v">${fmtK(row.valor)}</span></div>`;
+      }else if(!isPastM(m)){
+        const est=fixoUltimoValor(det);
+        fixoGridInner+=`<div class="ay-cell${alt?' ay-alt':''}${isCurM(m)?' ay-cur':''}">
+          ${est>0?`<span class="ay-v" style="opacity:.4;font-style:italic">${fmtK(est)}</span>`:`<span class="ay-dash">—</span>`}</div>`;
+      }else{
+        fixoGridInner+=`<div class="ay-cell${alt?' ay-alt':''}"><span class="ay-dash">—</span></div>`;
+      }
     }
   });
 
-  // ─── 3. PARCELAS (GANTT) ─────────────────────────────
-  const allParcDB=allData.filter(r=>r.tipo==='Parcela');
-  const parcNomes=[...new Set(allParcDB.filter(r=>r.ano===year).map(r=>r.det))];
+  // ─── 3. PARCELAS (GANTT) with value ──────────────────
   const PBG=['rgba(94,127,68,.2)','rgba(232,130,30,.2)','rgba(61,79,53,.2)','rgba(122,155,92,.2)','rgba(181,146,90,.2)','rgba(192,57,43,.2)'];
   const PFG=['#3D6B30','#a85c0f','#2C3D24','#4a6e2a','#7d5e2a','#8b2519'];
   let parcGridInner='';
-  parcNomes.forEach((nome,ri)=>{
-    const todas=allParcDB.filter(r=>r.det===nome).sort((a,b)=>a.ano*12+a.nMes-(b.ano*12+b.nMes));
+  parcNomes.forEach((det,ri)=>{
+    const todas=allParcDB.filter(r=>r.det===det).sort((a,b)=>a.ano*12+a.nMes-(b.ano*12+b.nMes));
     const total=todas.length;const bg=PBG[ri%PBG.length],fg=PFG[ri%PFG.length];
-    parcGridInner+=`<div class="ay-lbl" style="font-size:10px">${nome}</div>`;
+    parcGridInner+=`<div class="ay-lbl" style="font-size:10px">${det}</div>`;
     for(let m=1;m<=12;m++){
       const row=todas.find(r=>r.ano===year&&r.nMes===m);
       if(row){
         const idx=todas.findIndex(r=>r.ano===year&&r.nMes===m);
         const num=idx>=0?idx+1:'?';
         const shadow=isCurM(m)?';box-shadow:inset 0 0 0 1.5px rgba(232,130,30,.5)':'';
-        parcGridInner+=`<div class="ay-cell" style="background:${bg}${shadow}" title="${nome} ${num}/${total} — ${fmt(row.valor)}">
+        parcGridInner+=`<div class="ay-cell" style="background:${bg}${shadow};flex-direction:column;gap:1px" title="${det} ${num}/${total} — ${fmt(row.valor)}">
           <span class="ay-gantt-num" style="color:${fg}">${num}/${total}</span>
+          <span style="font-size:7px;font-weight:600;color:${fg};opacity:.75;position:relative;z-index:1">${fmtK(row.valor)}</span>
         </div>`;
       }else{
         parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}"><span class="ay-dash" style="opacity:.15">·</span></div>`;
@@ -928,12 +977,12 @@ function renderDiarioAnual(){
     }
   });
 
-  // ─── 4. DIÁRIO HEATMAP ───────────────────────────────
+  // ─── 4. DIÁRIO HEATMAP with stats + click ────────────
   let hmHTML='<div class="ay-hm-grid">';
   for(let m=1;m<=12;m++){
     const dias=daysInMonth(year,m);
     const firstDOW=new Date(year,m-1,1).getDay();
-    let dc='';
+    let dc='';let nOk=0,nOver=0,nNone=0,totalPast=0;
     ['D','S','T','Q','Q','S','S'].forEach(d=>{dc+=`<div class="ay-hm-dow">${d}</div>`});
     for(let i=0;i<firstDOW;i++)dc+=`<div class="ay-hm-c ay-hm-empty"></div>`;
     for(let d=1;d<=dias;d++){
@@ -942,60 +991,73 @@ function renderDiarioAnual(){
       const isToday_=iso===todayStr;
       const isPastDay=new Date(year,m-1,d)<=today;
       if(isPastDay){
+        totalPast++;
         const val=daySpend(iso);
         let cls='ay-hm-c ';
         if(isToday_)cls+='ay-hm-today';
-        else if(val>dayLimit)cls+='ay-hm-over';
-        else if(val>0)cls+='ay-hm-ok';
-        else cls+='ay-hm-none';
-        dc+=`<div class="${cls}" title="${d}/${m}: ${val>0?fmt(val):'sem gasto'}"></div>`;
+        else if(val>dayLimit){cls+='ay-hm-over';nOver++;}
+        else if(val>0){cls+='ay-hm-ok';nOk++;}
+        else{cls+='ay-hm-none';nNone++;}
+        if(isToday_){if(val>dayLimit)nOver++;else if(val>0)nOk++;else nNone++;}
+        const hasSpend=val>0;
+        dc+=`<div class="${cls}"${hasSpend?` onclick="openDayModal('${iso}','${d} de ${MONTHS[m-1]}')" style="cursor:pointer"`:''}  title="${d}/${m}: ${hasSpend?fmt(val):'sem gasto'}"></div>`;
       }else{
         dc+=`<div class="ay-hm-c ay-hm-fut"></div>`;
       }
     }
+    const statsHTML=totalPast>0?`<div class="ay-hm-stats">
+      <span style="color:var(--mid)">● ${nOk}/${totalPast}</span>
+      <span style="color:var(--red)">● ${nOver}/${totalPast}</span>
+      <span style="color:rgba(0,0,0,.35)">● ${nNone}/${totalPast}</span>
+    </div>`:'';
     hmHTML+=`<div class="ay-hm-month${isCurM(m)?' ay-hm-curm':''}">
       <div class="ay-hm-name">${MSHORT[m-1]}</div>
       <div class="ay-hm-days">${dc}</div>
+      ${statsHTML}
     </div>`;
   }
   hmHTML+=`</div><div class="ay-hm-leg">
-    <span><span class="ay-hm-dot ay-hm-ok"></span>dentro do limite</span>
+    <span><span class="ay-hm-dot ay-hm-ok"></span>abaixo do limite</span>
     <span><span class="ay-hm-dot ay-hm-over"></span>acima do limite</span>
     <span><span class="ay-hm-dot ay-hm-none"></span>sem gasto</span>
     <span><span class="ay-hm-dot ay-hm-fut"></span>futuro</span>
+    <span style="opacity:.6">clique num dia para ver detalhes</span>
   </div>`;
 
-  // ─── 5. INDICADORES ──────────────────────────────────
+  // ─── 5. INDICADORES (with estimates for future) ──────
   let runEcon=0;const econAcum={};
   for(let m=1;m<=12;m++){
-    if(hasDataM(m)){runEcon+=incomeForMonth(year,m)-totMes(year,m);econAcum[m]=runEcon}
-    else econAcum[m]=null;
+    runEcon+=incomeForMonth(year,m)-totalExpEstimado(m);
+    econAcum[m]=runEcon;
   }
   const indDefs=[
     {label:'Saldo',alt:false,fn:m=>{
-      if(!hasDataM(m))return`<span class="ay-dash">—</span>`;
-      const v=incomeForMonth(year,m)-totMes(year,m);
-      return`<span class="ay-v ${v>=0?'pos':'neg'}">${fmtK(v)}</span>`;
+      const inc=incomeForMonth(year,m),exp=totalExpEstimado(m);
+      const v=inc-exp;const est=isFutM(m);
+      return`<span class="ay-v ${v>=0?'pos':'neg'}"${est?' style="opacity:.45;font-style:italic"':''}>${fmtK(v)}</span>`;
     }},
     {label:'Despesa',alt:true,fn:m=>{
-      if(!hasDataM(m))return`<span class="ay-dash">—</span>`;
-      return`<span class="ay-v">${fmtK(totMes(year,m))}</span>`;
+      const exp=totalExpEstimado(m);const est=isFutM(m);
+      return`<span class="ay-v"${est?' style="opacity:.45;font-style:italic"':''}>${fmtK(exp)}</span>`;
     }},
     {label:'Ec. Acum.',alt:false,fn:m=>{
-      const v=econAcum[m];if(v===null)return`<span class="ay-dash">—</span>`;
-      return`<span class="ay-v ${v>=0?'pos':'neg'}">${fmtK(v)}</span>`;
+      const v=econAcum[m];const est=isFutM(m);
+      return`<span class="ay-v ${v>=0?'pos':'neg'}"${est?' style="opacity:.45;font-style:italic"':''}>${fmtK(v)}</span>`;
     }},
     {label:'% Econ.',alt:true,fn:m=>{
-      if(!hasDataM(m))return`<span class="ay-dash">—</span>`;
-      const inc=incomeForMonth(year,m),exp=totMes(year,m);
-      const pct=inc>0?(inc-exp)/inc:0;
-      return`<span class="ay-v ${pct>=0?'pos':'neg'}">${Math.round(pct*100)}%</span>`;
+      const inc=incomeForMonth(year,m),exp=totalExpEstimado(m);
+      const pct=inc>0?(inc-exp)/inc:0;const est=isFutM(m);
+      const pctR=Math.round(pct*100);
+      const color=pctR>=25?'var(--mid)':'var(--red)';
+      return`<span class="ay-v" style="color:${color}${est?';opacity:.45;font-style:italic':''}">${pctR}%</span>`;
     }},
     {label:'Média/dia',alt:false,fn:m=>{
       if(!hasDataM(m))return`<span class="ay-dash">—</span>`;
-      const d=isCurM(m)?today.getDate():daysInMonth(year,m);
-      const avg=d>0?diarioTotalDoMes(year,m)/d:0;
-      return`<span class="ay-v ${avg<=dayLimit?'pos':'neg'}">${fmtK(avg)}</span>`;
+      const diarRows=allData.filter(r=>r.tipo==='Diario'&&r.ano===year&&r.nMes===m&&r.dataISO);
+      const diarSum=diarRows.reduce((s,r)=>s+r.valor,0);
+      const distinctDays=new Set(diarRows.map(r=>r.dataISO)).size;
+      const avg=distinctDays>0?diarSum/distinctDays:0;
+      return`<span class="ay-v ${avg<=dayLimit?'pos':'neg'}">${avg>0?fmtK(avg):'—'}</span>`;
     }},
   ];
   let indCells='';
@@ -1023,7 +1085,7 @@ function renderDiarioAnual(){
     </div>
 
     <div class="ay-section">
-      <div class="ay-sec-title">Gastos Fixos</div>
+      <div class="ay-sec-title">Gastos Fixos <span style="font-size:8px;font-weight:400;opacity:.55">itálico = estimativa</span></div>
       ${fixoNomes.length
         ?`<div class="ay-grid">${gridHdr}${fixoGridInner}</div>`
         :`<div class="ay-sec-empty">Nenhum fixo registrado em ${year}</div>`}
@@ -1037,15 +1099,30 @@ function renderDiarioAnual(){
     </div>
 
     <div class="ay-section">
-      <div class="ay-sec-title">Diário <span style="font-weight:400;font-size:9px;opacity:.65">limite ${fmt(dayLimit)}/dia</span></div>
+      <div class="ay-sec-title">Diário <span style="font-weight:400;font-size:9px;opacity:.6">limite ${fmt(dayLimit)}/dia</span></div>
       ${hmHTML}
     </div>
 
     <div class="ay-section">
-      <div class="ay-sec-title">Indicadores</div>
+      <div class="ay-sec-title">Indicadores <span style="font-size:8px;font-weight:400;opacity:.55">itálico = estimativa</span></div>
       <div class="ay-grid">
         ${gridHdr}
         ${indCells}
+      </div>
+    </div>
+
+    <div class="sum-grid-3" style="margin-top:4px;margin-bottom:14px">
+      <div class="sum-item ${anoEcon>=0?'accent':''}">
+        <div class="sum-label">% Economia ${year}</div>
+        <div class="sum-val ${anoEcon<0?'neg':''}">${Math.round(anoEcon*100)}%</div>
+      </div>
+      <div class="sum-item">
+        <div class="sum-label">Receita (até hoje)</div>
+        <div class="sum-val pos">${fmtK(anoRec)}</div>
+      </div>
+      <div class="sum-item">
+        <div class="sum-label">Gasto (até hoje)</div>
+        <div class="sum-val">${fmtK(anoDesp)}</div>
       </div>
     </div>
   `;
