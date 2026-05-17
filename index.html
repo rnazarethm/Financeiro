@@ -1572,9 +1572,10 @@ function renderDashboard(){
   }else if(dashTab==='balanco'){
     const ms=monthsWithData();
     const labels=ms.map(m=>`${MSHORT[m.mes-1]}/${String(m.ano).slice(2)}`);
-    const balances=ms.map(m=>{const inc=incomeForMonth(m.ano,m.mes);const exp=totMes(m.ano,m.mes);return inc-exp});
+    const msData=ms.map(m=>{const inc=incomeForMonth(m.ano,m.mes);const exp=totMes(m.ano,m.mes);return{inc,exp,bal:inc-exp}});
+    const balances=msData.map(d=>d.bal);
     const base=sheetCfg.settings.patrimonio_base||0;
-    const patrim=[base];balances.forEach(b=>patrim.push(patrim[patrim.length-1]+b));patrim.shift();
+    const patrim=[base];msData.forEach(d=>patrim.push(patrim[patrim.length-1]+d.bal));patrim.shift();
     const totalG=patrim[patrim.length-1]||base;
     const avgBal=balances.reduce((a,b)=>a+b,0)/(balances.length||1);
     // Filter ms for table only
@@ -1614,7 +1615,7 @@ function renderDashboard(){
         </div>
         <div class="tbl-wrap"><table class="data">
           <tr><th>Mês</th><th style="text-align:right">Entradas</th><th style="text-align:right">Saídas</th><th style="text-align:right">Economia</th><th style="text-align:right">% Gastos</th></tr>
-          ${tblMs.map(m=>{const inc=incomeForMonth(m.ano,m.mes);const exp=totMes(m.ano,m.mes);const ec=inc-exp;const pct=inc>0?Math.round(exp/inc*100):null;return`<tr><td>${MSHORT[m.mes-1]} ${m.ano}</td><td class="td-r">${inc>0?fmt(inc):'—'}</td><td class="td-r">${fmt(exp)}</td><td class="td-r" style="color:${ec>=0?'var(--mid)':'var(--red)'}">${inc>0?fmt(ec):'—'}</td><td class="td-r">${pct!==null?`<span class="badge ${pct>100?'badge-r':pct>85?'badge-o':'badge-g'}">${pct}%</span>`:'—'}</td></tr>`}).join('')}
+          ${tblMs.map(m=>{const inc=incomeForMonth(m.ano,m.mes);const exp=totMes(m.ano,m.mes);const ec=inc-exp;const pct=inc>0?Math.round(exp/inc*100):null;return`<tr><td>${MSHORT[m.mes-1]} ${m.ano}</td><td class="td-r">${inc>0?fmt(inc):'—'}</td><td class="td-r">${fmt(exp)}</td><td class="td-r" style="color:${ec>=0?'var(--mid)':'var(--red)'}">${inc>0?fmt(ec):'—'}</td><td class="td-r">${pct!==null?`<span class="badge ${pct>100?'badge-r':pct>75?'badge-o':'badge-g'}">${pct}%</span>`:'—'}</td></tr>`}).join('')}
         </table></div>
       </div>
     `;
