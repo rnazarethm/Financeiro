@@ -665,9 +665,9 @@ function renderDiarioMensal(){
   // — Fixos do banco (tipo==='Fixo')
   // Para meses futuros sem dados, espelha o último mês com fixos
   const today_=new Date();
-  const isFutureMonth=(diarioYear>today_.getFullYear())||(diarioYear===today_.getFullYear()&&diarioMonth>=today_.getMonth()+1);
+  const isFutureOrCurrentMonth=(diarioYear>today_.getFullYear())||(diarioYear===today_.getFullYear()&&diarioMonth>=today_.getMonth()+1);
   const fixosDB=fixosDoMes(diarioYear,diarioMonth);
-  const fixosEstimados=fixosDB.length===0&&isFutureMonth;
+  const fixosEstimados=fixosDB.length===0&&isFutureOrCurrentMonth;
   const fixosDisplay=fixosEstimados?fixosUltimoMes():fixosDB;
   const ft=fixosDisplay.reduce((s,r)=>s+r.valor,0);
 
