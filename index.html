@@ -701,7 +701,7 @@ function renderDiarioMensal(){
   calCells+=DOW.map(d=>`<div class="cal-dow">${d}</div>`).join('');
   for(let i=0;i<firstDOW;i++)calCells+=`<div class="cal-day empty"></div>`;
 
-  let dailyReal=0,dailyFut=0,daysElapsed=0;
+  let dailyReal=0,dailyFut=0,daysElapsed=0,daysWithSpend=0;
   const isCurMonth=(diarioYear===today.getFullYear()&&diarioMonth===today.getMonth()+1);
   const isPastMonth=(diarioYear<today.getFullYear())||(diarioYear===today.getFullYear()&&diarioMonth<today.getMonth()+1);
 
@@ -715,6 +715,7 @@ function renderDiarioMensal(){
       val=daySpend(iso);
       dailyReal+=val;
       daysElapsed++;
+      if(val>0)daysWithSpend++;
       cls=isToday?'today':'past';
       hasData=val>0;
     }else{
@@ -733,8 +734,8 @@ function renderDiarioMensal(){
   const gastoAteHj=ft+pt+dailyReal;
   // Economia Prevista = entradas - gasto previsto
   const economiaPrev=inc-gastoPrevisto;
-  // Média diária = real diário / dias decorridos
-  const mediaDiaria=daysElapsed>0?dailyReal/daysElapsed:0;
+  // Média diária = real diário / dias com gasto
+  const mediaDiaria=daysWithSpend>0?dailyReal/daysWithSpend:0;
   // % economizado = economia / entradas
   const pctEcon=inc>0?economiaPrev/inc:0;
 
@@ -851,7 +852,7 @@ function openDayModal(iso,label){
   const items=allData.filter(r=>r.dataISO===iso);
   if(!items.length)return;
   document.getElementById('modal-title').textContent=label;
-  const totalDesp=items.filter(r=>r.tipo==='Despesa').reduce((s,r)=>s+r.valor,0);
+  const totalDesp=items.filter(r=>r.tipo!=='Receita').reduce((s,r)=>s+r.valor,0);
   document.getElementById('modal-body').innerHTML=`
     <div style="margin-bottom:10px;font-size:12px;color:var(--muted)">Total: <b style="color:var(--red)">${fmt(totalDesp)}</b></div>
     ${items.map(r=>`<div class="modal-item"><div><div class="modal-desc">${r.det}</div><div class="modal-meta">${r.cat}${r.subcat?' · '+r.subcat:''}</div></div><div class="modal-val ${r.tipo==='Receita'?'pos':''}">${r.tipo==='Receita'?'+':'−'}${fmt(r.valor)}</div></div>`).join('')}
@@ -976,6 +977,16 @@ function renderDiarioAnual(){
       }
     }
   });
+  // Linha de total de parcelas por mês
+  if(parcNomes.length){
+    parcGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(232,223,192,.45)">Total</div>`;
+    for(let m=1;m<=12;m++){
+      const tot=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+r.valor,0);
+      parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="background:rgba(232,223,192,.45)">
+        ${tot>0?`<span class="ay-v" style="font-weight:800">${fmtK(tot)}</span>`:`<span class="ay-dash">—</span>`}
+      </div>`;
+    }
+  }
 
   // ─── 4. DIÁRIO HEATMAP with stats + click ────────────
   let hmHTML='<div class="ay-hm-grid">';
