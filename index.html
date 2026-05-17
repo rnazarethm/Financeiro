@@ -641,8 +641,12 @@ function parcelasAtivas(ano,mes){
 function parcelasTotal(ano,mes){return parcelasAtivas(ano,mes).reduce((s,p)=>s+p.valor,0)}
 
 function monthsWithData(){
+  const _n=new Date();const _cy=_n.getFullYear(),_cm=_n.getMonth()+1;
   const s=new Set();
-  despesas().forEach(r=>{if(r.ano&&r.nMes)s.add(`${r.ano}-${r.nMes}`)});
+  despesas().forEach(r=>{
+    if(r.ano&&r.nMes&&((r.ano<_cy)||(r.ano===_cy&&r.nMes<=_cm)))
+      s.add(`${r.ano}-${r.nMes}`)
+  });
   return[...s].map(k=>{const[a,m]=k.split('-');return{ano:parseInt(a),mes:parseInt(m)}}).sort((a,b)=>a.ano*12+a.mes-(b.ano*12+b.mes))
 }
 
@@ -1521,18 +1525,19 @@ function renderDashboard(){
       <div class="card">
         <div class="info-row"><span>⏱ ${Math.round(pctT*100)}% do mês decorrido</span><span>💸 ${fmt(totM)} gastos até agora</span><span>🎯 Meta: ${fmt(meta)}</span></div>
         <div class="prog-wrap"><div class="prog-labels"><span>Gastos vs Meta</span><span>${fmtPct(totM/meta)}</span></div><div class="prog-bar"><div class="prog-fill ${totM/meta>1?'over':totM/meta>.85?'warn':''}" style="width:${Math.min(totM/meta*100,100)}%"></div></div></div>
-        <div class="chart-box tall" style="margin-top:12px"><canvas id="ch-catcomp"></canvas></div>
+        <div class="chart-box tall" style="margin-top:12px"><canvas id="ch-catcomp" style="cursor:pointer"></canvas></div>
+        <div style="font-size:10px;color:var(--muted);text-align:center;margin-top:4px">clique numa barra para ver os lançamentos</div>
       </div>
       <div class="card">
         <div class="card-title">Detalhe — ${MONTHS[m-1]} ${y}</div>
         <div class="tbl-wrap"><table class="data">
           <tr><th>Categoria</th><th style="text-align:right">Média hist.</th><th style="text-align:right">Este mês</th><th style="text-align:right">Status</th></tr>
-          ${allCats.map(c=>{const a=avgs[c]||0,cur=mesAtual[c]||0,pct=a>0?cur/a:null;return`<tr><td>${c}</td><td class="td-r">${fmt(a)}</td><td class="td-r">${fmt(cur)}</td><td class="td-r">${pct===null?'—':pct>1?`<span class="badge badge-r">${fmtPct(pct)}</span>`:`<span class="badge badge-g">${fmtPct(pct)}</span>`}</td></tr>`}).join('')}
+          ${allCats.map(c=>{const a=avgs[c]||0,cur=mesAtual[c]||0,pct=a>0?cur/a:null;return`<tr onclick="openDashModal('${c} — ${MONTHS[m-1]} ${y}',despesasMes_all(${y},${m}).filter(r=>r.cat==='${c}'))" style="cursor:pointer" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''"><td>${c}</td><td class="td-r">${fmt(a)}</td><td class="td-r">${fmt(cur)}</td><td class="td-r">${pct===null?'—':pct>1?`<span class="badge badge-r">${fmtPct(pct)}</span>`:`<span class="badge badge-g">${fmtPct(pct)}</span>`}</td></tr>`}).join('')}
         </table></div>
       </div>
     `;
     destroyChart('catcomp');
-    charts['catcomp']=new Chart(document.getElementById('ch-catcomp'),{type:'bar',data:{labels:allCats,datasets:[{label:'Média',data:allCats.map(c=>avgs[c]||0),backgroundColor:'rgba(94,127,68,.2)',borderColor:'#5E7F44',borderWidth:1.5,borderRadius:3},{label:'Mês atual',data:allCats.map(c=>mesAtual[c]||0),backgroundColor:'#3D4F35',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{family:'Inter',size:11}}}},scales:{y:{ticks:{callback:v=>`R$ ${v}`,font:{family:'Inter',size:10}}}}}});
+    charts['catcomp']=new Chart(document.getElementById('ch-catcomp'),{type:'bar',data:{labels:allCats,datasets:[{label:'Média hist.',data:allCats.map(c=>avgs[c]||0),backgroundColor:'rgba(94,127,68,.2)',borderColor:'#5E7F44',borderWidth:1.5,borderRadius:3},{label:'Mês atual',data:allCats.map(c=>mesAtual[c]||0),backgroundColor:'#3D4F35',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{family:'Inter',size:11}}}},scales:{y:{ticks:{callback:v=>`R$ ${v}`,font:{family:'Inter',size:10}}}},onClick:(_,els)=>{if(!els.length)return;const cat=allCats[els[0].index];openDashModal(`${cat} — ${MONTHS[m-1]} ${y}`,despesasMes_all(y,m).filter(r=>r.cat===cat));}}});
 
   }else if(dashTab==='superf'){
     const ms=monthsWithData();
