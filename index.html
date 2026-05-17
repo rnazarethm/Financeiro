@@ -499,6 +499,7 @@ let activeScreen='diario', dashTab='geral', diarioView='mensal';
 let diarioMonth=new Date().getMonth()+1, diarioYear=new Date().getFullYear();
 let lancarType='diario', simGastos=[], ltSort={col:'data',dir:-1};
 let dashFilters={anos:[],meses:[],cats:[],subcats:[]};
+let balFilters={ano:'',mes:''};
 let _msListenerAdded=false;
 
 // ══════════════════════════════════════════════════════
@@ -622,10 +623,14 @@ function byMes(ano,mes,data){return(data||allData).filter(r=>r.ano===ano&&r.nMes
 function despMes(ano,mes){return allData.filter(r=>r.tipo!=='Receita'&&r.ano===ano&&r.nMes===mes)}
 function totMes(ano,mes){return despMes(ano,mes).reduce((s,r)=>s+r.valor,0)}
 
-// Income from DB first, then Config fallback
+// Income from DB. For past months use only what's in the sheet (no fallback).
+// For current/future months fall back to config defaults.
 function incomeForMonth(ano,mes){
   const dbInc=receitas().filter(r=>r.ano===ano&&r.nMes===mes).reduce((s,r)=>s+r.valor,0);
   if(dbInc>0)return dbInc;
+  const _n=new Date();const cy=_n.getFullYear(),cm=_n.getMonth()+1;
+  const isPast=(ano<cy)||(ano===cy&&mes<cm);
+  if(isPast)return 0;
   const s=sheetCfg.settings;
   return(s.salario||0)+(s.va||0)+(s.vt||0)+(s.outras||0)
 }
@@ -1558,22 +1563,27 @@ function renderDashboard(){
         <div class="card-title">Bar / Rolê — média: ${fmt(barAvg)}/mês <span style="font-size:10px;color:var(--muted)">(clique no mês para ver detalhes)</span></div>
         <div class="chart-box"><canvas id="ch-bar"></canvas></div>
       </div>
-      <div id="superf-detail"></div>
     `;
     destroyChart('uber');destroyChart('bar');
-    const mkOpts=(avg)=>({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>`R$ ${v}`,font:{family:'Inter',size:10}}}},onClick:(_,els,chart)=>{if(!els.length)return;const idx=els[0].index;showSuperfDetail(ms[idx],chart.data.datasets[0].label)}});
-    charts['uber']=new Chart(document.getElementById('ch-uber'),{type:'bar',data:{labels,datasets:[{label:'Uber',data:uberData,backgroundColor:uberData.map(v=>v>uberAvg?'#C0392B':'#3D4F35'),borderRadius:3}]},options:mkOpts(uberAvg)});
-    charts['bar']=new Chart(document.getElementById('ch-bar'),{type:'bar',data:{labels,datasets:[{label:'Bar/Rolê',data:barData,backgroundColor:barData.map(v=>v>barAvg?'#C0392B':'#E8821E'),borderRadius:3}]},options:mkOpts(barAvg)});
+    const mkOpts=()=>({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>`R$ ${v}`,font:{family:'Inter',size:10}}}},onClick:(_,els,chart)=>{if(!els.length)return;const idx=els[0].index;const sub=chart.data.datasets[0].label;const mv=ms[idx];openDashModal(`${sub} — ${MONTHS[mv.mes-1]} ${mv.ano}`,despesasMes_all(mv.ano,mv.mes).filter(r=>r.subcat===sub));}});
+    charts['uber']=new Chart(document.getElementById('ch-uber'),{type:'bar',data:{labels,datasets:[{label:'Uber',data:uberData,backgroundColor:uberData.map(v=>v>uberAvg?'#C0392B':'#3D4F35'),borderRadius:3}]},options:mkOpts()});
+    charts['bar']=new Chart(document.getElementById('ch-bar'),{type:'bar',data:{labels,datasets:[{label:'Bar/Rolê',data:barData,backgroundColor:barData.map(v=>v>barAvg?'#C0392B':'#E8821E'),borderRadius:3}]},options:mkOpts()});
 
   }else if(dashTab==='balanco'){
     const ms=monthsWithData();
     const labels=ms.map(m=>`${MSHORT[m.mes-1]}/${String(m.ano).slice(2)}`);
     const balances=ms.map(m=>{const inc=incomeForMonth(m.ano,m.mes);const exp=totMes(m.ano,m.mes);return inc-exp});
-    const pctGastos=ms.map(m=>{const inc=incomeForMonth(m.ano,m.mes);const exp=totMes(m.ano,m.mes);return inc>0?Math.round(exp/inc*100):0});
     const base=sheetCfg.settings.patrimonio_base||0;
     const patrim=[base];balances.forEach(b=>patrim.push(patrim[patrim.length-1]+b));patrim.shift();
     const totalG=patrim[patrim.length-1]||base;
     const avgBal=balances.reduce((a,b)=>a+b,0)/(balances.length||1);
+    // Filter ms for table only
+    const tblMs=ms.filter(m=>{
+      if(balFilters.ano&&m.ano!==parseInt(balFilters.ano))return false;
+      if(balFilters.mes&&m.mes!==parseInt(balFilters.mes))return false;
+      return true;
+    });
+    const balAnos=[...new Set(ms.map(m=>m.ano))].sort();
 
     cont.innerHTML=`
       <div class="sum-grid" style="margin-bottom:12px">
@@ -1585,24 +1595,31 @@ function renderDashboard(){
         <div class="chart-box"><canvas id="ch-bal"></canvas></div>
       </div>
       <div class="card">
-        <div class="card-title">% de gastos por mês</div>
-        <div class="chart-box short"><canvas id="ch-pct"></canvas></div>
-      </div>
-      <div class="card">
         <div class="card-title">Evolução do patrimônio</div>
         <div class="chart-box"><canvas id="ch-pat"></canvas></div>
       </div>
       <div class="card">
-        <div class="card-title">Histórico detalhado</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div class="card-title" style="margin-bottom:0">Histórico detalhado</div>
+          <div style="display:flex;gap:8px">
+            <select class="filter-select" onchange="balFilters.ano=this.value;renderDashboard()">
+              <option value="">Todos os anos</option>
+              ${balAnos.map(a=>`<option value="${a}"${balFilters.ano==a?' selected':''}>${a}</option>`).join('')}
+            </select>
+            <select class="filter-select" onchange="balFilters.mes=this.value;renderDashboard()">
+              <option value="">Todos os meses</option>
+              ${MONTHS.map((name,i)=>`<option value="${i+1}"${balFilters.mes==i+1?' selected':''}>${name}</option>`).join('')}
+            </select>
+          </div>
+        </div>
         <div class="tbl-wrap"><table class="data">
           <tr><th>Mês</th><th style="text-align:right">Entradas</th><th style="text-align:right">Saídas</th><th style="text-align:right">Economia</th><th style="text-align:right">% Gastos</th></tr>
-          ${ms.map((m,i)=>{const inc=incomeForMonth(m.ano,m.mes);const exp=totMes(m.ano,m.mes);const ec=inc-exp;return`<tr><td>${MSHORT[m.mes-1]} ${m.ano}</td><td class="td-r">${fmt(inc)}</td><td class="td-r">${fmt(exp)}</td><td class="td-r" style="color:${ec>=0?'var(--mid)':'var(--red)'}">${fmt(ec)}</td><td class="td-r"><span class="badge ${pctGastos[i]>100?'badge-r':pctGastos[i]>85?'badge-o':'badge-g'}">${pctGastos[i]}%</span></td></tr>`}).join('')}
+          ${tblMs.map(m=>{const inc=incomeForMonth(m.ano,m.mes);const exp=totMes(m.ano,m.mes);const ec=inc-exp;const pct=inc>0?Math.round(exp/inc*100):null;return`<tr><td>${MSHORT[m.mes-1]} ${m.ano}</td><td class="td-r">${inc>0?fmt(inc):'—'}</td><td class="td-r">${fmt(exp)}</td><td class="td-r" style="color:${ec>=0?'var(--mid)':'var(--red)'}">${inc>0?fmt(ec):'—'}</td><td class="td-r">${pct!==null?`<span class="badge ${pct>100?'badge-r':pct>85?'badge-o':'badge-g'}">${pct}%</span>`:'—'}</td></tr>`}).join('')}
         </table></div>
       </div>
     `;
-    ['bal','pct','pat'].forEach(id=>destroyChart(id));
+    ['bal','pat'].forEach(id=>destroyChart(id));
     charts['bal']=new Chart(document.getElementById('ch-bal'),{type:'bar',data:{labels,datasets:[{data:balances,backgroundColor:balances.map(v=>v>=0?'#5E7F44':'#C0392B'),borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>`R$${(v/1000).toFixed(1)}k`,font:{family:'Inter',size:10}}}}}});
-    charts['pct']=new Chart(document.getElementById('ch-pct'),{type:'line',data:{labels,datasets:[{data:pctGastos,borderColor:'#E8821E',backgroundColor:'rgba(232,130,30,.1)',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:'#E8821E'},{label:'100%',data:Array(labels.length).fill(100),borderColor:'rgba(192,57,43,.4)',borderDash:[5,3],borderWidth:1.5,pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>`${v}%`,font:{family:'Inter',size:10}}}}}});
     charts['pat']=new Chart(document.getElementById('ch-pat'),{type:'line',data:{labels,datasets:[{data:patrim,borderColor:'#3D4F35',backgroundColor:'rgba(61,79,53,.1)',fill:true,tension:.3,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>`R$${(v/1000).toFixed(1)}k`,font:{family:'Inter',size:10}}}}}})
   }
 }
