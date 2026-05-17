@@ -734,8 +734,8 @@ function renderDiarioMensal(){
   const gastoAteHj=ft+pt+dailyReal;
   // Economia Prevista = entradas - gasto previsto
   const economiaPrev=inc-gastoPrevisto;
-  // Média diária = real diário / dias com gasto
-  const mediaDiaria=daysWithSpend>0?dailyReal/daysWithSpend:0;
+  // Média diária = total diário / dias do mês
+  const mediaDiaria=dailyReal/daysInMonth(diarioYear,diarioMonth);
   // % economizado = economia / entradas
   const pctEcon=inc>0?economiaPrev/inc:0;
 
@@ -954,6 +954,20 @@ function renderDiarioAnual(){
     }
   });
 
+  // Linha total de fixos por mês
+  if(fixoNomes.length){
+    fixoGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(232,223,192,.5)">Total</div>`;
+    for(let m=1;m<=12;m++){
+      const rows=fixosAno.filter(r=>r.nMes===m);
+      const hasReal=rows.length>0;
+      const tot=hasReal?rows.reduce((s,r)=>s+r.valor,0):(!isPastM(m)?fixoNomes.reduce((s,d)=>s+fixoUltimoValor(d),0):0);
+      const isEst=!hasReal&&!isPastM(m);
+      fixoGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="background:rgba(232,223,192,.5)">
+        ${tot>0?`<span class="ay-v" style="font-weight:800${isEst?';opacity:.5;font-style:italic':''}">${fmtK(tot)}</span>`:`<span class="ay-dash">—</span>`}
+      </div>`;
+    }
+  }
+
   // ─── 3. PARCELAS (GANTT) with value ──────────────────
   const PBG=['rgba(94,127,68,.2)','rgba(232,130,30,.2)','rgba(61,79,53,.2)','rgba(122,155,92,.2)','rgba(181,146,90,.2)','rgba(192,57,43,.2)'];
   const PFG=['#3D6B30','#a85c0f','#2C3D24','#4a6e2a','#7d5e2a','#8b2519'];
@@ -979,11 +993,26 @@ function renderDiarioAnual(){
   });
   // Linha de total de parcelas por mês
   if(parcNomes.length){
-    parcGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(232,223,192,.45)">Total</div>`;
+    parcGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(232,223,192,.45)">Total Parc.</div>`;
     for(let m=1;m<=12;m++){
       const tot=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+r.valor,0);
       parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="background:rgba(232,223,192,.45)">
         ${tot>0?`<span class="ay-v" style="font-weight:800">${fmtK(tot)}</span>`:`<span class="ay-dash">—</span>`}
+      </div>`;
+    }
+  }
+  // Linha % (fixos + parcelas) / receita
+  if(fixoNomes.length||parcNomes.length){
+    parcGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(61,79,53,.09)">% s/ Receita</div>`;
+    for(let m=1;m<=12;m++){
+      const inc=incomeForMonth(year,m);
+      const fixRows=fixosAno.filter(r=>r.nMes===m);
+      const fixTot=fixRows.length?fixRows.reduce((s,r)=>s+r.valor,0):(!isPastM(m)?fixoNomes.reduce((s,d)=>s+fixoUltimoValor(d),0):0);
+      const parcTot=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+r.valor,0);
+      const pct=inc>0?Math.round((fixTot+parcTot)/inc*100):0;
+      const hasVal=(fixTot+parcTot)>0&&inc>0;
+      parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="background:rgba(61,79,53,.09)">
+        ${hasVal?`<span class="ay-v" style="color:var(--dark);font-weight:800">${pct}%</span>`:`<span class="ay-dash">—</span>`}
       </div>`;
     }
   }
@@ -1064,10 +1093,7 @@ function renderDiarioAnual(){
     }},
     {label:'Média/dia',alt:false,fn:m=>{
       if(!hasDataM(m))return`<span class="ay-dash">—</span>`;
-      const diarRows=allData.filter(r=>r.tipo==='Diario'&&r.ano===year&&r.nMes===m&&r.dataISO);
-      const diarSum=diarRows.reduce((s,r)=>s+r.valor,0);
-      const distinctDays=new Set(diarRows.map(r=>r.dataISO)).size;
-      const avg=distinctDays>0?diarSum/distinctDays:0;
+      const avg=diarioTotalDoMes(year,m)/daysInMonth(year,m);
       return`<span class="ay-v ${avg<=dayLimit?'pos':'neg'}">${avg>0?fmtK(avg):'—'}</span>`;
     }},
   ];
