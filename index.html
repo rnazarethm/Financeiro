@@ -146,7 +146,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .ay-hm-name{font-size:8px;font-weight:700;color:var(--muted);text-align:center;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}
 .ay-hm-days{display:grid;grid-template-columns:repeat(7,1fr);gap:1.5px}
 .ay-hm-dow{font-size:6px;color:var(--muted);text-align:center;font-weight:600;padding:1px 0;line-height:1}
-.ay-hm-c{aspect-ratio:1;border-radius:1.5px}
+.ay-hm-c{aspect-ratio:1;border-radius:1.5px;display:flex;align-items:flex-start;justify-content:flex-start;overflow:hidden}
+.ay-hm-num{font-size:5.5px;font-weight:700;line-height:1;padding:1.5px 0 0 1.5px;display:block;pointer-events:none;color:rgba(255,255,255,.85)}
+.ay-hm-num.dark{color:rgba(0,0,0,.35)}
 .ay-hm-empty{background:transparent}
 .ay-hm-ok{background:rgba(94,127,68,.55)}
 .ay-hm-over{background:rgba(192,57,43,.7)}
@@ -619,7 +621,8 @@ function fixosDoMes(ano,mes){return allData.filter(r=>r.tipo==='Fixo'&&r.ano===a
 function fixosTotalDoMes(ano,mes){return fixosDoMes(ano,mes).reduce((s,r)=>s+r.valor,0)}
 function parcelasDoMes(ano,mes){return allData.filter(r=>r.tipo==='Parcela'&&r.ano===ano&&r.nMes===mes)}
 function parcelasTotalDoMes(ano,mes){return parcelasDoMes(ano,mes).reduce((s,r)=>s+r.valor,0)}
-function diarioDoMes(ano,mes){return allData.filter(r=>r.tipo==='Diario'&&r.ano===ano&&r.nMes===mes)}
+// Inclui tipo==='Diario' e o tipo legado 'Despesa'; exige dataISO para excluir Fixo/Parcela sem data
+function diarioDoMes(ano,mes){return allData.filter(r=>r.dataISO&&r.tipo!=='Receita'&&r.tipo!=='Fixo'&&r.tipo!=='Parcela'&&r.ano===ano&&r.nMes===mes)}
 function diarioTotalDoMes(ano,mes){return diarioDoMes(ano,mes).reduce((s,r)=>s+r.valor,0)}
 
 // Retorna os fixos do último mês que tem fixos no banco (usado como espelho para meses futuros)
@@ -1040,9 +1043,10 @@ function renderDiarioAnual(){
         else{cls+='ay-hm-none';nNone++;}
         if(isToday_){if(val>dayLimit)nOver++;else if(val>0)nOk++;else nNone++;}
         const hasSpend=val>0;
-        dc+=`<div class="${cls}"${hasSpend?` onclick="openDayModal('${iso}','${d} de ${MONTHS[m-1]}')" style="cursor:pointer"`:''}  title="${d}/${m}: ${hasSpend?fmt(val):'sem gasto'}"></div>`;
+        const numCls=(!isToday_&&!hasSpend)?'dark':'';
+        dc+=`<div class="${cls}"${hasSpend?` onclick="openDayModal('${iso}','${d} de ${MONTHS[m-1]}')" style="cursor:pointer"`:''}  title="${d}/${m}: ${hasSpend?fmt(val):'sem gasto'}"><span class="ay-hm-num ${numCls}">${d}</span></div>`;
       }else{
-        dc+=`<div class="ay-hm-c ay-hm-fut"></div>`;
+        dc+=`<div class="ay-hm-c ay-hm-fut"><span class="ay-hm-num dark">${d}</span></div>`;
       }
     }
     const statsHTML=totalPast>0?`<div class="ay-hm-stats">
