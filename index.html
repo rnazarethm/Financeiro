@@ -94,6 +94,21 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .filter-search:focus{border-color:var(--mid)}
 .filter-label{font-size:11px;font-weight:600;color:var(--muted)}
 
+/* ── MULTI-SELECT ─────────────────────────── */
+.ms-wrap{position:relative}
+.ms-trigger{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--card);border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;user-select:none;transition:all .15s}
+.ms-trigger:hover{border-color:var(--mid)}
+.ms-trigger.has-sel{border-color:var(--dark);background:var(--cream);color:var(--dark)}
+.ms-chev{opacity:.35;font-size:9px;margin-left:1px}
+.ms-dropdown{position:absolute;top:calc(100% + 4px);left:0;min-width:175px;background:var(--card);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:300;overflow:hidden;display:none;max-height:240px;overflow-y:auto}
+.ms-dropdown.open{display:block}
+.ms-item{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)}
+.ms-item:last-of-type{border-bottom:none}
+.ms-item:hover{background:var(--bg)}
+.ms-item input{width:14px;height:14px;accent-color:var(--dark);cursor:pointer;flex-shrink:0}
+.ms-clear{padding:7px 12px;font-size:11px;font-weight:700;color:var(--accent);cursor:pointer;border-top:1px solid var(--border);text-align:center}
+.ms-clear:hover{background:var(--bg)}
+
 /* ── MONTH NAV ────────────────────────────── */
 .mnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .mnav-title{font-size:17px;font-weight:700;color:var(--dark)}
@@ -376,12 +391,7 @@ table.data tr:last-child td{border-bottom:none}
 
     <!-- DASHBOARD -->
     <div id="screen-dashboard" class="screen">
-      <div class="filter-bar">
-        <select class="filter-select" id="f-ano" onchange="onFilterChange()"><option value="">Todos os anos</option></select>
-        <select class="filter-select" id="f-mes" onchange="onFilterChange()"><option value="">Todos os meses</option></select>
-        <select class="filter-select" id="f-cat" onchange="onFilterChangeCat()"><option value="">Todas as categorias</option></select>
-        <select class="filter-select" id="f-subcat" onchange="onFilterChange()"><option value="">Todas as subcategorias</option></select>
-      </div>
+      <div class="filter-bar" id="dash-filter-bar"></div>
       <div class="dtabs">
         <div class="dtab active" onclick="setDashTab('geral',this)">Visão Geral</div>
         <div class="dtab" onclick="setDashTab('mes',this)">Mês Atual</div>
@@ -465,6 +475,18 @@ table.data tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- DASH MODAL -->
+<div id="dash-modal" class="modal-overlay hidden" onclick="closeDashModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div class="modal-title" id="dash-modal-title" style="margin-bottom:0"></div>
+      <div style="font-size:12px;color:var(--muted)">Total: <b id="dash-modal-total" style="color:var(--red)"></b></div>
+    </div>
+    <div id="dash-modal-body"></div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script>
@@ -476,7 +498,8 @@ let token=null, tokenClient=null, charts={};
 let activeScreen='diario', dashTab='geral', diarioView='mensal';
 let diarioMonth=new Date().getMonth()+1, diarioYear=new Date().getFullYear();
 let lancarType='diario', simGastos=[], ltSort={col:'data',dir:-1};
-let dashFilters={ano:'',mes:'',cat:'',subcat:''};
+let dashFilters={anos:[],meses:[],cats:[],subcats:[]};
+let _msListenerAdded=false;
 
 // ══════════════════════════════════════════════════════
 // CONSTANTS
@@ -672,11 +695,11 @@ function patrimonyAccum(){
 // Filtered data for dashboard
 function filteredDespesas(){
   let d=despesas();
-  if(dashFilters.ano)d=d.filter(r=>r.ano===parseInt(dashFilters.ano));
-  if(dashFilters.mes)d=d.filter(r=>r.nMes===parseInt(dashFilters.mes));
-  if(dashFilters.cat)d=d.filter(r=>r.cat===dashFilters.cat);
-  if(dashFilters.subcat)d=d.filter(r=>r.subcat===dashFilters.subcat);
-  return d
+  if(dashFilters.anos.length)d=d.filter(r=>dashFilters.anos.includes(String(r.ano)));
+  if(dashFilters.meses.length)d=d.filter(r=>dashFilters.meses.includes(String(r.nMes)));
+  if(dashFilters.cats.length)d=d.filter(r=>dashFilters.cats.includes(r.cat));
+  if(dashFilters.subcats.length)d=d.filter(r=>dashFilters.subcats.includes(r.subcat));
+  return d;
 }
 
 // ══════════════════════════════════════════════════════
@@ -1339,56 +1362,103 @@ async function lancarGasto(){
 // ══════════════════════════════════════════════════════
 // SCREEN: DASHBOARD
 // ══════════════════════════════════════════════════════
+// ── MULTI-SELECT HELPERS ──────────────────────────────
+function buildMs(id,label,options,key){
+  const items=options.map(o=>`<label class="ms-item"><input type="checkbox" data-ms="${id}" data-key="${key}" value="${o.value}" onchange="onMsChange('${id}','${key}')"> <span>${o.label}</span></label>`).join('');
+  return `<div class="ms-wrap"><div class="ms-trigger" id="ms-trig-${id}" onclick="toggleMs('${id}')"><span id="ms-lbl-${id}">${label}</span><span class="ms-chev">▾</span></div><div class="ms-dropdown" id="ms-dd-${id}">${items}${options.length?`<div class="ms-clear" onclick="clearMs('${id}','${key}')">✕ Limpar seleção</div>`:''}</div></div>`;
+}
+
+function toggleMs(id){
+  const dd=document.getElementById('ms-dd-'+id);
+  const wasOpen=dd.classList.contains('open');
+  document.querySelectorAll('.ms-dropdown').forEach(d=>d.classList.remove('open'));
+  if(!wasOpen)dd.classList.add('open');
+}
+
+function onMsChange(id,key){
+  dashFilters[key]=[...document.querySelectorAll(`input[data-ms="${id}"]`)].filter(c=>c.checked).map(c=>c.value);
+  updateMsTrigger(id,key);
+  if(key==='anos')rebuildMeses();
+  if(key==='cats')rebuildSubcats();
+  renderDashboard();
+}
+
+function clearMs(id,key){
+  document.querySelectorAll(`input[data-ms="${id}"]`).forEach(c=>c.checked=false);
+  dashFilters[key]=[];
+  updateMsTrigger(id,key);
+  if(key==='anos')rebuildMeses();
+  if(key==='cats')rebuildSubcats();
+  renderDashboard();
+}
+
+const MS_LABELS_MAP={anos:'Ano',meses:'Mês',cats:'Categoria',subcats:'Subcategoria'};
+function updateMsTrigger(id,key){
+  const lbl=document.getElementById('ms-lbl-'+id);
+  const trig=document.getElementById('ms-trig-'+id);
+  if(!lbl)return;
+  const sel=dashFilters[key];
+  if(!sel.length){lbl.textContent=MS_LABELS_MAP[key];trig.classList.remove('has-sel')}
+  else if(sel.length===1){lbl.textContent=sel[0];trig.classList.add('has-sel')}
+  else{lbl.textContent=`${sel.length} selecionados`;trig.classList.add('has-sel')}
+}
+
+function rebuildMeses(){
+  const selAnos=dashFilters.anos.map(Number);
+  const base=selAnos.length?despesas().filter(r=>selAnos.includes(r.ano)):despesas();
+  const meses=[...new Set(base.map(r=>r.nMes))].filter(Boolean).sort((a,b)=>a-b);
+  const dd=document.getElementById('ms-dd-f-meses');if(!dd)return;
+  const items=meses.map(m=>`<label class="ms-item"><input type="checkbox" data-ms="f-meses" data-key="meses" value="${m}" onchange="onMsChange('f-meses','meses')"> <span>${MONTHS[m-1]}</span></label>`).join('');
+  dd.innerHTML=items+(meses.length?`<div class="ms-clear" onclick="clearMs('f-meses','meses')">✕ Limpar seleção</div>`:'');
+  dashFilters.meses=dashFilters.meses.filter(m=>meses.map(String).includes(m));
+  dashFilters.meses.forEach(m=>{const cb=dd.querySelector(`input[value="${m}"]`);if(cb)cb.checked=true});
+  updateMsTrigger('f-meses','meses');
+}
+
+function rebuildSubcats(){
+  const selCats=dashFilters.cats;
+  const base=selCats.length?despesas().filter(r=>selCats.includes(r.cat)):despesas();
+  const subcats=[...new Set(base.map(r=>r.subcat))].filter(Boolean).sort();
+  const dd=document.getElementById('ms-dd-f-subcats');if(!dd)return;
+  const items=subcats.map(s=>`<label class="ms-item"><input type="checkbox" data-ms="f-subcats" data-key="subcats" value="${s}" onchange="onMsChange('f-subcats','subcats')"> <span>${s}</span></label>`).join('');
+  dd.innerHTML=items+(subcats.length?`<div class="ms-clear" onclick="clearMs('f-subcats','subcats')">✕ Limpar seleção</div>`:'');
+  dashFilters.subcats=dashFilters.subcats.filter(s=>subcats.includes(s));
+  dashFilters.subcats.forEach(s=>{const cb=dd.querySelector(`input[value="${s}"]`);if(cb)cb.checked=true});
+  updateMsTrigger('f-subcats','subcats');
+}
+
 function initDashFilters(){
   const anos=[...new Set(allData.map(r=>r.ano))].filter(Boolean).sort();
-  const fAno=document.getElementById('f-ano');
-  fAno.innerHTML='<option value="">Todos os anos</option>';
-  anos.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;fAno.appendChild(o)});
-  const cats=[...new Set(despesas().map(r=>r.cat))].filter(Boolean).sort();
-  const fCat=document.getElementById('f-cat');
-  fCat.innerHTML='<option value="">Todas as categorias</option>';
-  cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;fCat.appendChild(o)});
-  // Set current year as default
-  const curY=new Date().getFullYear();
-  if(anos.includes(curY))fAno.value=curY;
-  dashFilters.ano=String(curY);
-  onFilterChange()
-}
-
-function onFilterChange(){
-  dashFilters.ano=document.getElementById('f-ano').value;
-  dashFilters.mes=document.getElementById('f-mes').value;
-  dashFilters.cat=document.getElementById('f-cat').value;
-  dashFilters.subcat=document.getElementById('f-subcat').value;
-  renderDashboard()
-}
-
-function onFilterChangeCat(){
-  dashFilters.cat=document.getElementById('f-cat').value;
-  const subs=[...new Set(despesas().filter(r=>!dashFilters.cat||r.cat===dashFilters.cat).map(r=>r.subcat))].filter(Boolean).sort();
-  const fSub=document.getElementById('f-subcat');
-  fSub.innerHTML='<option value="">Todas as subcategorias</option>';
-  subs.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;fSub.appendChild(o)});
-  onFilterChange()
-}
-
-function updateMesFilter(ano){
-  const meses=[...new Set(despesas().filter(r=>!ano||r.ano===parseInt(ano)).map(r=>r.nMes))].filter(Boolean).sort((a,b)=>a-b);
-  const fMes=document.getElementById('f-mes');
-  const cur=fMes.value;
-  fMes.innerHTML='<option value="">Todos os meses</option>';
-  meses.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=MONTHS[m-1];fMes.appendChild(o)});
-  if(cur)fMes.value=cur
+  const allCats=[...new Set(despesas().map(r=>r.cat))].filter(Boolean).sort();
+  const allSubcats=[...new Set(despesas().map(r=>r.subcat))].filter(Boolean).sort();
+  document.getElementById('dash-filter-bar').innerHTML=[
+    buildMs('f-anos','Ano',anos.map(a=>({value:String(a),label:String(a)})),'anos'),
+    buildMs('f-meses','Mês',MONTHS.map((m,i)=>({value:String(i+1),label:m})),'meses'),
+    buildMs('f-cats','Categoria',allCats.map(c=>({value:c,label:c})),'cats'),
+    buildMs('f-subcats','Subcategoria',allSubcats.map(s=>({value:s,label:s})),'subcats')
+  ].join('');
+  const curY=String(new Date().getFullYear());
+  if(anos.map(String).includes(curY)){
+    dashFilters.anos=[curY];
+    const cb=document.querySelector(`input[data-ms="f-anos"][value="${curY}"]`);
+    if(cb)cb.checked=true;
+    updateMsTrigger('f-anos','anos');
+    rebuildMeses();
+  }
+  if(!_msListenerAdded){
+    _msListenerAdded=true;
+    document.addEventListener('click',function(e){if(!e.target.closest('.ms-wrap'))document.querySelectorAll('.ms-dropdown').forEach(d=>d.classList.remove('open'))});
+  }
+  renderDashboard();
 }
 
 function setDashTab(tab,el){
   dashTab=tab;
   document.querySelectorAll('.dtab').forEach(t=>t.classList.remove('active'));el.classList.add('active');
-  renderDashboard()
+  renderDashboard();
 }
 
 function renderDashboard(){
-  updateMesFilter(dashFilters.ano);
   const fd=filteredDespesas();
   const cats=[...new Set(fd.map(r=>r.cat))].filter(Boolean);
   const catCol={};cats.forEach((c,i)=>catCol[c]=PALETTE[i%PALETTE.length]);
@@ -1410,28 +1480,28 @@ function renderDashboard(){
 
     cont.innerHTML=`
       <div class="card">
-        <div class="card-title">Gasto por mês</div>
-        <div class="chart-box tall"><canvas id="ch-mensal"></canvas></div>
+        <div class="card-title">Gasto por mês <span style="font-size:10px;font-weight:400;color:var(--muted)">(clique numa barra para ver detalhes)</span></div>
+        <div class="chart-box tall"><canvas id="ch-mensal" style="cursor:pointer"></canvas></div>
       </div>
       <div class="card">
-        <div class="card-title">Distribuição por categoria</div>
+        <div class="card-title">Distribuição por categoria <span style="font-size:10px;font-weight:400;color:var(--muted)">(clique para ver detalhes)</span></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:center">
-          <div style="height:200px;position:relative"><canvas id="ch-donut"></canvas></div>
-          <div>${sortedCats.map(([c,v])=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;font-size:12px"><div style="width:9px;height:9px;border-radius:50%;background:${catCol[c]};flex-shrink:0"></div><div style="flex:1">${c}</div><div style="font-weight:600">${Math.round(v/grandTotal*100)}%</div></div>`).join('')}</div>
+          <div style="height:200px;position:relative"><canvas id="ch-donut" style="cursor:pointer"></canvas></div>
+          <div>${sortedCats.map(([c,v])=>`<div onclick="openCatModal('${c}')" style="display:flex;align-items:center;gap:6px;margin-bottom:7px;font-size:12px;cursor:pointer;padding:3px 4px;border-radius:5px" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''"><div style="width:9px;height:9px;border-radius:50%;background:${catCol[c]};flex-shrink:0"></div><div style="flex:1">${c}</div><div style="font-weight:600">${Math.round(v/grandTotal*100)}%</div></div>`).join('')}</div>
         </div>
       </div>
       <div class="card">
         <div class="card-title">Médias mensais por categoria</div>
         <div class="tbl-wrap"><table class="data">
           <tr><th>Categoria</th><th style="text-align:right">Média/mês</th><th style="text-align:right">Total</th><th style="text-align:right">%</th></tr>
-          ${sortedCats.map(([c,v])=>`<tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${catCol[c]};margin-right:7px"></span>${c}</td><td class="td-r">${fmt(v/nMonths)}</td><td class="td-r">${fmt(v)}</td><td class="td-r">${Math.round(v/grandTotal*100)}%</td></tr>`).join('')}
+          ${sortedCats.map(([c,v])=>`<tr onclick="openCatModal('${c}')" style="cursor:pointer" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''"><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${catCol[c]};margin-right:7px"></span>${c}</td><td class="td-r">${fmt(v/nMonths)}</td><td class="td-r">${fmt(v)}</td><td class="td-r">${Math.round(v/grandTotal*100)}%</td></tr>`).join('')}
           <tr style="font-weight:700;border-top:2px solid var(--border)"><td>Total</td><td class="td-r">${fmt(grandTotal/nMonths)}</td><td class="td-r">${fmt(grandTotal)}</td><td class="td-r">100%</td></tr>
         </table></div>
       </div>
     `;
     destroyChart('mensal');destroyChart('donut');
-    charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data:{labels:mLabels,datasets:[{label:'Gasto',data:mVals,backgroundColor:'#5E7F44',borderRadius:4},{label:'Média',data:avgLine,type:'line',borderColor:'#E8821E',borderDash:[5,3],borderWidth:2,pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{family:'Inter',size:11}}}},scales:{y:{ticks:{callback:v=>`R$${(v/1000).toFixed(1)}k`,font:{family:'Inter',size:10}}}}}});
-    charts['donut']=new Chart(document.getElementById('ch-donut'),{type:'doughnut',data:{labels:sortedCats.map(([c])=>c),datasets:[{data:sortedCats.map(([,v])=>v),backgroundColor:sortedCats.map(([c])=>catCol[c]),borderWidth:2,borderColor:'#FDFAF4'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'65%'}});
+    charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data:{labels:mLabels,datasets:[{label:'Gasto',data:mVals,backgroundColor:'#5E7F44',borderRadius:4},{label:'Média',data:avgLine,type:'line',borderColor:'#E8821E',borderDash:[5,3],borderWidth:2,pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{family:'Inter',size:11}}}},scales:{y:{ticks:{callback:v=>`R$${(v/1000).toFixed(1)}k`,font:{family:'Inter',size:10}}}},onClick:(_,els)=>{if(!els.length)return;const idx=els[0].index;openMonthModal(mKeys[idx],mLabels[idx]);}}});
+    charts['donut']=new Chart(document.getElementById('ch-donut'),{type:'doughnut',data:{labels:sortedCats.map(([c])=>c),datasets:[{data:sortedCats.map(([,v])=>v),backgroundColor:sortedCats.map(([c])=>catCol[c]),borderWidth:2,borderColor:'#FDFAF4'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'65%',onClick:(_,els)=>{if(!els.length)return;const idx=els[0].index;openCatModal(sortedCats[idx][0]);}}});
 
   }else if(dashTab==='mes'){
     const today=new Date();const y=today.getFullYear(),m=today.getMonth()+1;
@@ -1537,6 +1607,31 @@ function showSuperfDetail(m,subcat){
       ${items.map(r=>`<div class="drow"><span>${r.dataISO} · ${r.det}</span><span class="drow-val">${fmt(r.valor)}</span></div>`).join('')||'<div style="color:var(--muted)">Nenhum lançamento</div>'}
     </div>
   `
+}
+
+function openDashModal(title, items){
+  const total=items.filter(r=>r.tipo!=='Receita').reduce((s,r)=>s+r.valor,0);
+  items=[...items].sort((a,b)=>b.valor-a.valor);
+  document.getElementById('dash-modal-title').textContent=title;
+  document.getElementById('dash-modal-total').textContent=fmt(total);
+  document.getElementById('dash-modal-body').innerHTML=items.length?`
+    <div class="tbl-wrap"><table class="data">
+      <tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Subcategoria</th><th style="text-align:right">Valor</th></tr>
+      ${items.map(r=>`<tr><td>${r.dataISO||'—'}</td><td>${r.det}</td><td>${r.cat||'—'}</td><td>${r.subcat||'—'}</td><td class="td-r">${fmt(r.valor)}</td></tr>`).join('')}
+    </table></div>
+  `:'<p style="color:var(--muted);padding:10px 0">Sem lançamentos</p>';
+  document.getElementById('dash-modal').classList.remove('hidden');
+}
+
+function closeDashModal(e){if(e.target===document.getElementById('dash-modal'))document.getElementById('dash-modal').classList.add('hidden')}
+
+function openMonthModal(key,label){
+  const[a,m]=key.split('-').map(Number);
+  openDashModal(`${MONTHS[m-1]} ${a}`,despesasMes_all(a,m));
+}
+
+function openCatModal(cat){
+  openDashModal(cat,filteredDespesas().filter(r=>r.cat===cat));
 }
 
 // ══════════════════════════════════════════════════════
