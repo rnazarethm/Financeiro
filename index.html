@@ -602,6 +602,16 @@ function parcelasTotalDoMes(ano,mes){return parcelasDoMes(ano,mes).reduce((s,r)=
 function diarioDoMes(ano,mes){return allData.filter(r=>r.tipo==='Diario'&&r.ano===ano&&r.nMes===mes)}
 function diarioTotalDoMes(ano,mes){return diarioDoMes(ano,mes).reduce((s,r)=>s+r.valor,0)}
 
+// Retorna os fixos do último mês que tem fixos no banco (usado como espelho para meses futuros)
+function fixosUltimoMes(){
+  const comFixo=allData.filter(r=>r.tipo==='Fixo');
+  if(!comFixo.length)return[];
+  const ultimo=comFixo.reduce((best,r)=>{
+    return(r.ano*12+r.nMes)>(best.ano*12+best.nMes)?r:best
+  },comFixo[0]);
+  return fixosDoMes(ultimo.ano,ultimo.nMes);
+}
+
 function patrimonyAccum(){
   const base=sheetCfg.settings.patrimonio_base||0;
   const ms=monthsWithData();
@@ -653,8 +663,13 @@ function renderDiarioMensal(){
   const receitasMes=receitas().filter(r=>r.ano===diarioYear&&r.nMes===diarioMonth);
 
   // — Fixos do banco (tipo==='Fixo')
+  // Para meses futuros sem dados, espelha o último mês com fixos
+  const today_=new Date();
+  const isFutureMonth=(diarioYear>today_.getFullYear())||(diarioYear===today_.getFullYear()&&diarioMonth>today_.getMonth()+1);
   const fixosDB=fixosDoMes(diarioYear,diarioMonth);
-  const ft=fixosDB.reduce((s,r)=>s+r.valor,0);
+  const fixosEstimados=fixosDB.length===0&&isFutureMonth;
+  const fixosDisplay=fixosEstimados?fixosUltimoMes():fixosDB;
+  const ft=fixosDisplay.reduce((s,r)=>s+r.valor,0);
 
   // — Parcelas do banco (tipo==='Parcela')
   const parcDB=parcelasDoMes(diarioYear,diarioMonth);
@@ -753,17 +768,21 @@ function renderDiarioMensal(){
 
     <!-- Fixos do banco -->
     <div class="card">
-      <div class="sec-hdr"><span>Gastos Fixos</span><span>${fmt(ft)}</span></div>
-      ${fixosDB.length>0
-        ? fixosDB.map(f=>`
-            <div class="drow">
+      <div class="sec-hdr">
+        <span>Gastos Fixos${fixosEstimados?'<span style="color:var(--orange);font-size:10px;font-weight:600;margin-left:6px">estimativa</span>':''}</span>
+        <span>${fmt(ft)}</span>
+      </div>
+      ${fixosDisplay.length>0
+        ? fixosDisplay.map(f=>`
+            <div class="drow" style="${fixosEstimados?'opacity:.7':''}">
               <div>
                 <span style="font-weight:500">${f.det||f.cat}</span>
                 ${f.subcat?`<span style="color:var(--muted);font-size:11px;margin-left:6px">${f.subcat}</span>`:''}
+                ${fixosEstimados?'<span style="color:var(--orange);font-size:10px;margin-left:4px">est.</span>':''}
               </div>
-              <span class="drow-val">${fmt(f.valor)}</span>
+              <span class="drow-val" style="${fixosEstimados?'color:var(--muted);font-style:italic':''}">${fmt(f.valor)}</span>
             </div>`).join('')
-        : '<div style="color:var(--muted);font-size:13px;padding:8px 0">Nenhum fixo encontrado neste mês no banco</div>'}
+        : '<div style="color:var(--muted);font-size:13px;padding:8px 0">Nenhum fixo encontrado</div>'}
     </div>
 
     <!-- Parcelas -->
