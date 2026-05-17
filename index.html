@@ -121,21 +121,40 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .modal-val{font-size:14px;font-weight:700;color:var(--red);white-space:nowrap}
 .modal-val.pos{color:var(--mid)}
 
-/* ── ANNUAL TABLE ─────────────────────────── */
-.annual-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.annual-table{border-collapse:collapse;font-size:11px;min-width:700px;width:100%}
-.annual-table th,.annual-table td{padding:5px 8px;text-align:right;white-space:nowrap}
-.annual-table th:first-child,.annual-table td:first-child{text-align:left;position:sticky;left:0;background:var(--card);z-index:1;min-width:130px;font-weight:600}
-.annual-table thead th{background:var(--dark);color:#fff;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
-.annual-table thead th:first-child{background:var(--dark);color:#fff}
-.annual-table tr:hover td{background:rgba(232,223,192,.4)}
-.annual-section-hdr td{background:var(--cream);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--dark);padding:6px 8px}
-.annual-table .cur-month{background:rgba(232,130,30,.12)!important;font-weight:700}
-.annual-table .parcela-active{background:rgba(94,127,68,.15);font-weight:600;color:var(--dark)}
-.annual-table .parcela-inactive{color:var(--muted)}
-.annual-table .neg{color:var(--red)}
-.annual-table .pos{color:var(--mid)}
-.annual-total-row td{font-weight:700;border-top:2px solid var(--border)}
+/* ── ANNUAL VIEW ──────────────────────────────── */
+.ay-section{background:var(--card);border-radius:12px;border:1px solid var(--border);margin-bottom:14px;overflow:hidden}
+.ay-sec-title{font-size:10px;font-weight:700;color:var(--dark);text-transform:uppercase;letter-spacing:.07em;padding:9px 12px 8px;background:var(--cream);border-bottom:1px solid var(--border)}
+.ay-grid{display:grid;grid-template-columns:90px repeat(12,1fr);width:100%}
+.ay-lbl-hdr{background:var(--cream);border-bottom:1px solid var(--border)}
+.ay-hdr{font-size:8px;font-weight:700;color:var(--muted);text-align:center;padding:5px 1px 4px;background:var(--cream);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.03em}
+.ay-hdr.ay-cur-hdr{color:var(--orange);background:rgba(232,130,30,.12);font-weight:800}
+.ay-lbl{font-size:10px;font-weight:500;color:var(--text);padding:5px 8px;display:flex;align-items:center;border-bottom:1px solid rgba(0,0,0,.04);min-height:30px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;background:var(--card)}
+.ay-lbl.ay-alt{background:rgba(232,223,192,.28)}
+.ay-cell{display:flex;align-items:center;justify-content:center;padding:3px 1px;border-bottom:1px solid rgba(0,0,0,.04);min-height:30px;position:relative;overflow:hidden;background:var(--card)}
+.ay-cell.ay-alt{background:rgba(232,223,192,.28)}
+.ay-cell.ay-cur{background:rgba(232,130,30,.07)!important}
+.ay-bar{position:absolute;bottom:0;left:1px;right:1px;background:rgba(94,127,68,.18);border-radius:2px 2px 0 0}
+.ay-v{font-size:8.5px;font-weight:700;color:var(--text);position:relative;z-index:1;text-align:center;line-height:1.2;white-space:nowrap}
+.ay-v.pos{color:var(--mid)}.ay-v.neg{color:var(--red)}
+.ay-dash{color:rgba(0,0,0,.2);font-size:12px}
+.ay-gantt-num{font-size:7.5px;font-weight:700;position:relative;z-index:1;text-align:center}
+.ay-sec-empty{padding:14px;font-size:12px;color:var(--muted);text-align:center}
+/* Heatmap */
+.ay-hm-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px}
+.ay-hm-month{background:var(--bg);border-radius:7px;padding:7px 6px 5px;border:1px solid var(--border)}
+.ay-hm-month.ay-hm-curm{border-color:rgba(232,130,30,.6);background:rgba(232,130,30,.04)}
+.ay-hm-name{font-size:8px;font-weight:700;color:var(--muted);text-align:center;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}
+.ay-hm-days{display:grid;grid-template-columns:repeat(7,1fr);gap:1.5px}
+.ay-hm-dow{font-size:6px;color:var(--muted);text-align:center;font-weight:600;padding:1px 0;line-height:1}
+.ay-hm-c{aspect-ratio:1;border-radius:1.5px}
+.ay-hm-empty{background:transparent}
+.ay-hm-ok{background:rgba(94,127,68,.55)}
+.ay-hm-over{background:rgba(192,57,43,.7)}
+.ay-hm-none{background:rgba(0,0,0,.09)}
+.ay-hm-fut{background:rgba(0,0,0,.04)}
+.ay-hm-today{background:var(--dark)!important;border-radius:50%!important}
+.ay-hm-leg{display:flex;gap:12px;align-items:center;justify-content:center;padding:2px 10px 10px;font-size:9px;color:var(--muted);flex-wrap:wrap}
+.ay-hm-dot{display:inline-block;width:8px;height:8px;border-radius:1.5px;margin-right:3px;vertical-align:middle}
 
 /* ── DIÁRIO SUMMARY ───────────────────────── */
 .sum-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
@@ -844,123 +863,192 @@ function renderDiarioAnual(){
   const year=diarioYear;
   const today=new Date();
   const curM=today.getMonth()+1,curY=today.getFullYear();
+  const dayLimit=sheetCfg.settings.gasto_diario||60;
+  const todayStr=todayISO();
 
-  // Build month headers
-  let thCols=`<th>Item</th>`;
-  for(let m=1;m<=12;m++){
-    const isCur=(year===curY&&m===curM);
-    thCols+=`<th${isCur?' class="cur-month"':''}>${MSHORT[m-1]}</th>`
-  }
-  thCols+=`<th>Total</th>`;
+  const isCurM=m=>year===curY&&m===curM;
+  const isPastM=m=>(year<curY)||(year===curY&&m<curM);
+  const hasDataM=m=>isPastM(m)||isCurM(m);
 
-  const cellVal=(val,cls='')=>val?`<td class="${cls}">${fmt(val)}</td>`:`<td class="parcela-inactive">—</td>`;
+  // ─── Shared month header strip ────────────────────────
+  const mHdrs=MSHORT.map((s,i)=>{
+    const m=i+1;
+    return`<div class="ay-hdr${isCurM(m)?' ay-cur-hdr':''}">${s}</div>`;
+  }).join('');
+  const gridHdr=`<div class="ay-lbl-hdr"></div>${mHdrs}`;
 
-  // Entradas row
-  let entRow=`<td>Entradas</td>`;let entTotal=0;
-  for(let m=1;m<=12;m++){const v=incomeForMonth(year,m);entTotal+=v;const cur=(year===curY&&m===curM);entRow+=`<td class="${cur?'cur-month':''}" style="color:var(--mid);font-weight:600">${fmt(v)}</td>`}
-  entRow+=`<td style="color:var(--mid);font-weight:700">${fmt(entTotal)}</td>`;
+  // ─── 1. ENTRADAS ─────────────────────────────────────
+  const entVals=Array.from({length:12},(_,i)=>incomeForMonth(year,i+1));
+  const maxEnt=Math.max(...entVals,1);
+  const entCells=entVals.map((v,i)=>{
+    const m=i+1;const pct=Math.round(v/maxEnt*75);
+    return`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="min-height:48px;align-items:flex-end;padding-bottom:5px" title="${fmt(v)}">
+      <div class="ay-bar" style="height:${pct}%"></div>
+      <span class="ay-v pos">${v>0?fmtK(v):'—'}</span>
+    </div>`;
+  }).join('');
 
-  // Fixos rows — agrupa por det, mostra qual mês tem linha no banco
-  let fixoRows='';
-  const allFixosAno=allData.filter(r=>r.tipo==='Fixo');
-  const fixoNomes=[...new Set(allFixosAno.map(r=>r.det))];
-  fixoNomes.forEach(nome=>{
-    const linhas=allFixosAno.filter(r=>r.det===nome);
-    let row=`<td>${nome}</td>`;let tot=0;
+  // ─── 2. GASTOS FIXOS ──────────────────────────────────
+  const fixosAno=allData.filter(r=>r.tipo==='Fixo'&&r.ano===year);
+  const fixoNomes=[...new Set(fixosAno.map(r=>r.det))];
+  let fixoGridInner='';
+  fixoNomes.forEach((nome,ri)=>{
+    const alt=ri%2===1;const linhas=fixosAno.filter(r=>r.det===nome);
+    fixoGridInner+=`<div class="ay-lbl${alt?' ay-alt':''}" style="font-size:10px">${nome}</div>`;
     for(let m=1;m<=12;m++){
-      const cur=(year===curY&&m===curM);
-      const hasRow=linhas.find(r=>r.ano===year&&r.nMes===m);
-      if(hasRow){row+=`<td class="${cur?'cur-month':''}">${fmt(hasRow.valor)}</td>`;tot+=hasRow.valor}
-      else row+=`<td class="${cur?'cur-month ':''} parcela-inactive">—</td>`
+      const row=linhas.find(r=>r.nMes===m);
+      fixoGridInner+=`<div class="ay-cell${alt?' ay-alt':''}${isCurM(m)?' ay-cur':''}">
+        ${row?`<span class="ay-v">${fmtK(row.valor)}</span>`:`<span class="ay-dash">—</span>`}
+      </div>`;
     }
-    row+=`<td>${fmt(tot)}</td>`;fixoRows+=`<tr>${row}</tr>`
   });
 
-  // Parcelas rows — agrupa por det, mostra meses com linha no banco
-  let parcRows='';
-  const allParcAno=allData.filter(r=>r.tipo==='Parcela');
-  const parcNomes=[...new Set(allParcAno.map(r=>r.det))];
-  parcNomes.forEach(nome=>{
-    const linhas=allParcAno.filter(r=>r.det===nome);
-    let row=`<td>${nome}</td>`;let tot=0;
+  // ─── 3. PARCELAS (GANTT) ─────────────────────────────
+  const allParcDB=allData.filter(r=>r.tipo==='Parcela');
+  const parcNomes=[...new Set(allParcDB.filter(r=>r.ano===year).map(r=>r.det))];
+  const PBG=['rgba(94,127,68,.2)','rgba(232,130,30,.2)','rgba(61,79,53,.2)','rgba(122,155,92,.2)','rgba(181,146,90,.2)','rgba(192,57,43,.2)'];
+  const PFG=['#3D6B30','#a85c0f','#2C3D24','#4a6e2a','#7d5e2a','#8b2519'];
+  let parcGridInner='';
+  parcNomes.forEach((nome,ri)=>{
+    const todas=allParcDB.filter(r=>r.det===nome).sort((a,b)=>a.ano*12+a.nMes-(b.ano*12+b.nMes));
+    const total=todas.length;const bg=PBG[ri%PBG.length],fg=PFG[ri%PFG.length];
+    parcGridInner+=`<div class="ay-lbl" style="font-size:10px">${nome}</div>`;
     for(let m=1;m<=12;m++){
-      const cur=(year===curY&&m===curM);
-      const hasRow=linhas.find(r=>r.ano===year&&r.nMes===m);
-      if(hasRow){row+=`<td class="${cur?'cur-month ':''}parcela-active">${fmt(hasRow.valor)}</td>`;tot+=hasRow.valor}
-      else row+=`<td class="${cur?'cur-month ':''}" style="color:var(--border)">—</td>`
+      const row=todas.find(r=>r.ano===year&&r.nMes===m);
+      if(row){
+        const idx=todas.findIndex(r=>r.ano===year&&r.nMes===m);
+        const num=idx>=0?idx+1:'?';
+        const shadow=isCurM(m)?';box-shadow:inset 0 0 0 1.5px rgba(232,130,30,.5)':'';
+        parcGridInner+=`<div class="ay-cell" style="background:${bg}${shadow}" title="${nome} ${num}/${total} — ${fmt(row.valor)}">
+          <span class="ay-gantt-num" style="color:${fg}">${num}/${total}</span>
+        </div>`;
+      }else{
+        parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}"><span class="ay-dash" style="opacity:.15">·</span></div>`;
+      }
     }
-    row+=`<td class="parcela-active">${fmt(tot)}</td>`;parcRows+=`<tr>${row}</tr>`
   });
 
-  // Diário rows — só tipo=Diario; passado=real, atual=real+estimativa, futuro=estimativa
-  let diarioRow=`<td>Diário (real/est.)</td>`;let diarTotal=0;
+  // ─── 4. DIÁRIO HEATMAP ───────────────────────────────
+  let hmHTML='<div class="ay-hm-grid">';
   for(let m=1;m<=12;m++){
-    const isPast=(year<curY)||(year===curY&&m<curM);
-    const isCur=(year===curY&&m===curM);
-    let v;
-    if(isPast)v=diarioTotalDoMes(year,m);
-    else if(isCur){const d=diarioTotalDoMes(year,m);const rem=(daysInMonth(year,m)-today.getDate())*(sheetCfg.settings.gasto_diario||60);v=d+rem}
-    else v=(sheetCfg.settings.gasto_diario||60)*daysInMonth(year,m);
-    diarTotal+=v;diarioRow+=`<td class="${isCur?'cur-month':''}">${fmt(v)}</td>`
+    const dias=daysInMonth(year,m);
+    const firstDOW=new Date(year,m-1,1).getDay();
+    let dc='';
+    ['D','S','T','Q','Q','S','S'].forEach(d=>{dc+=`<div class="ay-hm-dow">${d}</div>`});
+    for(let i=0;i<firstDOW;i++)dc+=`<div class="ay-hm-c ay-hm-empty"></div>`;
+    for(let d=1;d<=dias;d++){
+      const mm=String(m).padStart(2,'0'),dd_=String(d).padStart(2,'0');
+      const iso=`${year}-${mm}-${dd_}`;
+      const isToday_=iso===todayStr;
+      const isPastDay=new Date(year,m-1,d)<=today;
+      if(isPastDay){
+        const val=daySpend(iso);
+        let cls='ay-hm-c ';
+        if(isToday_)cls+='ay-hm-today';
+        else if(val>dayLimit)cls+='ay-hm-over';
+        else if(val>0)cls+='ay-hm-ok';
+        else cls+='ay-hm-none';
+        dc+=`<div class="${cls}" title="${d}/${m}: ${val>0?fmt(val):'sem gasto'}"></div>`;
+      }else{
+        dc+=`<div class="ay-hm-c ay-hm-fut"></div>`;
+      }
+    }
+    hmHTML+=`<div class="ay-hm-month${isCurM(m)?' ay-hm-curm':''}">
+      <div class="ay-hm-name">${MSHORT[m-1]}</div>
+      <div class="ay-hm-days">${dc}</div>
+    </div>`;
   }
-  diarioRow+=`<td>${fmt(diarTotal)}</td>`;
+  hmHTML+=`</div><div class="ay-hm-leg">
+    <span><span class="ay-hm-dot ay-hm-ok"></span>dentro do limite</span>
+    <span><span class="ay-hm-dot ay-hm-over"></span>acima do limite</span>
+    <span><span class="ay-hm-dot ay-hm-none"></span>sem gasto</span>
+    <span><span class="ay-hm-dot ay-hm-fut"></span>futuro</span>
+  </div>`;
 
-  // Total saídas + economia — usa funções do banco
-  let saidRow=`<td style="font-weight:700">Total Saídas</td>`,econRow=`<td style="font-weight:700">Economia</td>`,pctRow=`<td style="font-weight:700">% Gastos</td>`;
-  let accumPatr=sheetCfg.settings.patrimonio_base||0;
-  let patrimRow=`<td style="font-weight:700">Patrimônio</td>`;
-  let saidTotal=0;
+  // ─── 5. INDICADORES ──────────────────────────────────
+  let runEcon=0;const econAcum={};
   for(let m=1;m<=12;m++){
-    const isCur=(year===curY&&m===curM);
-    const inc=incomeForMonth(year,m);
-    const ft=fixosTotalDoMes(year,m),pt=parcelasTotalDoMes(year,m);
-    const isPast=(year<curY)||(year===curY&&m<curM),isCurM=isCur;
-    let dVal;
-    if(isPast)dVal=diarioTotalDoMes(year,m);
-    else if(isCurM){const d=daySpend(todayISO());dVal=d+((daysInMonth(year,m)-today.getDate())*(sheetCfg.settings.gasto_diario||60))}
-    else dVal=(sheetCfg.settings.gasto_diario||60)*daysInMonth(year,m);
-    const saidas=ft+pt+dVal;
-    const econ=inc-saidas;
-    const pct=inc>0?saidas/inc:0;
-    accumPatr+=econ;
-    saidTotal+=saidas;
-    saidRow+=`<td class="${isCur?'cur-month':''}">${fmt(saidas)}</td>`;
-    econRow+=`<td class="${isCur?'cur-month':''}" style="color:${econ>=0?'var(--mid)':'var(--red)'}${isCur?';font-weight:700':''}">${fmt(econ)}</td>`;
-    pctRow+=`<td class="${isCur?'cur-month':''}" style="color:${pct>1?'var(--red)':'var(--text)'}">${fmtPct(pct)}</td>`;
-    patrimRow+=`<td class="${isCur?'cur-month':''}" style="color:var(--dark)">${fmt(accumPatr)}</td>`
+    if(hasDataM(m)){runEcon+=incomeForMonth(year,m)-totMes(year,m);econAcum[m]=runEcon}
+    else econAcum[m]=null;
   }
-  saidRow+=`<td style="font-weight:700">${fmt(saidTotal)}</td>`;
+  const indDefs=[
+    {label:'Saldo',alt:false,fn:m=>{
+      if(!hasDataM(m))return`<span class="ay-dash">—</span>`;
+      const v=incomeForMonth(year,m)-totMes(year,m);
+      return`<span class="ay-v ${v>=0?'pos':'neg'}">${fmtK(v)}</span>`;
+    }},
+    {label:'Despesa',alt:true,fn:m=>{
+      if(!hasDataM(m))return`<span class="ay-dash">—</span>`;
+      return`<span class="ay-v">${fmtK(totMes(year,m))}</span>`;
+    }},
+    {label:'Ec. Acum.',alt:false,fn:m=>{
+      const v=econAcum[m];if(v===null)return`<span class="ay-dash">—</span>`;
+      return`<span class="ay-v ${v>=0?'pos':'neg'}">${fmtK(v)}</span>`;
+    }},
+    {label:'% Econ.',alt:true,fn:m=>{
+      if(!hasDataM(m))return`<span class="ay-dash">—</span>`;
+      const inc=incomeForMonth(year,m),exp=totMes(year,m);
+      const pct=inc>0?(inc-exp)/inc:0;
+      return`<span class="ay-v ${pct>=0?'pos':'neg'}">${Math.round(pct*100)}%</span>`;
+    }},
+    {label:'Média/dia',alt:false,fn:m=>{
+      if(!hasDataM(m))return`<span class="ay-dash">—</span>`;
+      const d=isCurM(m)?today.getDate():daysInMonth(year,m);
+      const avg=d>0?diarioTotalDoMes(year,m)/d:0;
+      return`<span class="ay-v ${avg<=dayLimit?'pos':'neg'}">${fmtK(avg)}</span>`;
+    }},
+  ];
+  let indCells='';
+  indDefs.forEach(({label,alt,fn})=>{
+    indCells+=`<div class="ay-lbl${alt?' ay-alt':''}">${label}</div>`;
+    for(let m=1;m<=12;m++){
+      indCells+=`<div class="ay-cell${alt?' ay-alt':''}${isCurM(m)?' ay-cur':''}">${fn(m)}</div>`;
+    }
+  });
 
+  // ─── OUTPUT ───────────────────────────────────────────
   document.getElementById('diario-content').innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <button class="btn-icon" onclick="diarioYear--;renderDiario()">‹</button>
-      <div style="font-size:17px;font-weight:700;color:var(--dark)">${year}</div>
+      <span style="font-size:17px;font-weight:700;color:var(--dark)">${year}</span>
       <button class="btn-icon" onclick="diarioYear++;renderDiario()">›</button>
     </div>
-    <div class="card" style="padding:0;overflow:hidden">
-      <div class="annual-wrap">
-        <table class="annual-table">
-          <thead><tr>${thCols}</tr></thead>
-          <tbody>
-            <tr class="annual-section-hdr"><td colspan="14">ENTRADAS</td></tr>
-            <tr>${entRow}</tr>
-            <tr class="annual-section-hdr"><td colspan="14">GASTOS FIXOS</td></tr>
-            ${fixoRows||'<tr><td colspan="14" style="color:var(--muted);padding:10px">Configure em ⚙</td></tr>'}
-            <tr class="annual-section-hdr"><td colspan="14">PARCELAS</td></tr>
-            ${parcRows||'<tr><td colspan="14" style="color:var(--muted);padding:10px">Nenhuma parcela</td></tr>'}
-            <tr class="annual-section-hdr"><td colspan="14">DIÁRIO</td></tr>
-            <tr>${diarioRow}</tr>
-            <tr class="annual-section-hdr"><td colspan="14">TOTAIS</td></tr>
-            <tr class="annual-total-row">${saidRow}</tr>
-            <tr class="annual-total-row">${econRow}</tr>
-            <tr>${pctRow}</tr>
-            <tr>${patrimRow}</tr>
-          </tbody>
-        </table>
+
+    <div class="ay-section">
+      <div class="ay-sec-title">Entradas</div>
+      <div class="ay-grid">
+        ${gridHdr}
+        <div class="ay-lbl"></div>${entCells}
       </div>
     </div>
-    <div style="font-size:11px;color:var(--muted);margin-top:6px">Meses futuros usam estimativa de R$${sheetCfg.settings.gasto_diario||60}/dia · coluna atual destacada</div>
-  `
+
+    <div class="ay-section">
+      <div class="ay-sec-title">Gastos Fixos</div>
+      ${fixoNomes.length
+        ?`<div class="ay-grid">${gridHdr}${fixoGridInner}</div>`
+        :`<div class="ay-sec-empty">Nenhum fixo registrado em ${year}</div>`}
+    </div>
+
+    <div class="ay-section">
+      <div class="ay-sec-title">Parcelas</div>
+      ${parcNomes.length
+        ?`<div class="ay-grid">${gridHdr}${parcGridInner}</div>`
+        :`<div class="ay-sec-empty">Nenhuma parcela ativa em ${year}</div>`}
+    </div>
+
+    <div class="ay-section">
+      <div class="ay-sec-title">Diário <span style="font-weight:400;font-size:9px;opacity:.65">limite ${fmt(dayLimit)}/dia</span></div>
+      ${hmHTML}
+    </div>
+
+    <div class="ay-section">
+      <div class="ay-sec-title">Indicadores</div>
+      <div class="ay-grid">
+        ${gridHdr}
+        ${indCells}
+      </div>
+    </div>
+  `;
 }
 
 // ══════════════════════════════════════════════════════
