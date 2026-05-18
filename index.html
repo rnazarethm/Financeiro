@@ -407,7 +407,8 @@ table.data tr:last-child td{border-bottom:none}
         <select class="filter-select" id="lt-ano" onchange="renderLancamentos()"><option value="">Todos os anos</option></select>
         <select class="filter-select" id="lt-mes" onchange="renderLancamentos()"><option value="">Todos os meses</option></select>
         <select class="filter-select" id="lt-cat" onchange="renderLancamentos()"><option value="">Todas as categorias</option></select>
-        <select class="filter-select" id="lt-tipo" onchange="renderLancamentos()"><option value="">Despesa + Receita</option><option value="Despesa">Só Despesas</option><option value="Receita">Só Receitas</option></select>
+        <select class="filter-select" id="lt-subcat" onchange="renderLancamentos()"><option value="">Todas as subcats</option></select>
+        <select class="filter-select" id="lt-tipo" onchange="renderLancamentos()"><option value="">Todos os tipos</option><option value="Diario">Diário</option><option value="Fixo">Fixo</option><option value="Parcela">Parcela</option><option value="Receita">Receita</option></select>
         <input class="filter-search" id="lt-search" placeholder="🔍 Buscar descrição..." oninput="renderLancamentos()">
       </div>
       <div id="lt-summary" style="margin-bottom:10px"></div>
@@ -472,6 +473,30 @@ table.data tr:last-child td{border-bottom:none}
     <div class="modal-handle"></div>
     <div class="modal-title" id="modal-title"></div>
     <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div id="ed-modal" class="modal-overlay hidden" onclick="closeEdModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Editar lançamento</div>
+    <div class="fi-row">
+      <div class="fg"><label class="fl">Data</label><input class="fi" id="ed-data" type="date"></div>
+      <div class="fg"><label class="fl">Valor (R$)</label><input class="fi" id="ed-valor" type="number" step="0.01"></div>
+    </div>
+    <div class="fg"><label class="fl">Descrição</label><input class="fi" id="ed-desc"></div>
+    <div class="fi-row">
+      <div class="fg"><label class="fl">Categoria</label><select class="fs" id="ed-cat" onchange="updateEdSubcats()"></select></div>
+      <div class="fg"><label class="fl">Subcategoria</label><select class="fs" id="ed-subcat"></select></div>
+    </div>
+    <div class="fg"><label class="fl">Tipo</label><select class="fs" id="ed-tipo">
+      <option value="Diario">Diário</option><option value="Fixo">Fixo</option><option value="Parcela">Parcela</option><option value="Receita">Receita</option>
+    </select></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn btn-primary" style="flex:1" onclick="saveEditLancamento()">✓ Salvar alterações</button>
+      <button class="btn btn-outline" onclick="document.getElementById('ed-modal').classList.add('hidden')">Cancelar</button>
+    </div>
   </div>
 </div>
 
@@ -582,7 +607,7 @@ async function loadAllData(){
         if(typeof r[1]==='number'){const d=excelDate(r[1]);iso=d?toISO(d):''}
         else iso=String(r[1]).split('T')[0]
       }
-      return{valor:parseFloat(r[0])||0,dataISO:iso,det:r[2]||'',mes:r[3]||'',nMes:parseInt(r[4])||0,cat:r[5]||'',subcat:r[6]||'',tipo:r[7]||'',ano:parseInt(r[8])||0}
+      return{valor:parseFloat(r[0])||0,dataISO:iso,det:r[2]||'',mes:r[3]||'',nMes:parseInt(r[4])||0,cat:r[5]||'',subcat:r[6]||'',tipo:r[7]||'',ano:parseInt(r[8])||0,_row:i+2}
     }).filter(r=>r.valor>0)
   }
   await loadConfig();await loadSims();
@@ -1683,19 +1708,31 @@ function renderLancamentos(){
   const ano=document.getElementById('lt-ano').value;
   const mes=document.getElementById('lt-mes')?.value||'';
   const cat=document.getElementById('lt-cat').value;
+  const subcat=document.getElementById('lt-subcat')?.value||'';
   const tipo=document.getElementById('lt-tipo').value;
   const q=(document.getElementById('lt-search').value||'').toLowerCase();
 
-  // Update month filter
+  // Cascade: month filter
   const meses=[...new Set(allData.filter(r=>!ano||r.ano===parseInt(ano)).map(r=>r.nMes))].filter(Boolean).sort((a,b)=>a-b);
   const ltMes=document.getElementById('lt-mes');
   const curMes=ltMes?.value||'';
   if(ltMes){ltMes.innerHTML='<option value="">Todos os meses</option>';meses.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=MONTHS[m-1];ltMes.appendChild(o)});if(curMes)ltMes.value=curMes}
 
+  // Cascade: subcat filter (based on selected cat)
+  const ltSubcat=document.getElementById('lt-subcat');
+  const curSubcat=ltSubcat?.value||'';
+  if(ltSubcat){
+    const subs=[...new Set(allData.filter(r=>!cat||r.cat===cat).map(r=>r.subcat))].filter(Boolean).sort();
+    ltSubcat.innerHTML='<option value="">Todas as subcats</option>';
+    subs.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;ltSubcat.appendChild(o)});
+    if(subs.includes(curSubcat))ltSubcat.value=curSubcat;
+  }
+
   let data=[...allData];
   if(ano)data=data.filter(r=>r.ano===parseInt(ano));
   if(mes)data=data.filter(r=>r.nMes===parseInt(mes));
   if(cat)data=data.filter(r=>r.cat===cat);
+  if(subcat)data=data.filter(r=>r.subcat===subcat);
   if(tipo)data=data.filter(r=>r.tipo===tipo);
   if(q)data=data.filter(r=>r.det.toLowerCase().includes(q)||r.cat.toLowerCase().includes(q)||r.subcat.toLowerCase().includes(q));
 
@@ -1708,20 +1745,21 @@ function renderLancamentos(){
     return v*ltSort.dir
   });
 
-  const totalDesp=data.filter(r=>r.tipo==='Despesa').reduce((s,r)=>s+r.valor,0);
+  const totalDesp=data.filter(r=>r.tipo!=='Receita').reduce((s,r)=>s+r.valor,0);
   const totalRec=data.filter(r=>r.tipo==='Receita').reduce((s,r)=>s+r.valor,0);
   document.getElementById('lt-summary').innerHTML=`
-    <div style="display:flex;gap:10px;font-size:12px;flex-wrap:wrap">
+    <div style="display:flex;gap:10px;font-size:12px;flex-wrap:wrap;align-items:center">
       <div class="tag">${data.length} lançamentos</div>
       <div class="tag" style="color:var(--red)">Despesas: ${fmt(totalDesp)}</div>
       ${totalRec>0?`<div class="tag" style="color:var(--mid)">Receitas: ${fmt(totalRec)}</div>`:''}
+      <div style="font-size:11px;color:var(--muted);margin-left:auto">Clique em qualquer linha para editar</div>
     </div>
   `;
 
-  const thSort=(col,label)=>`<th onclick="sortLt('${col}')" style="text-align:${col==='valor'?'right':'left'}">${label} ${ltSort.col===col?(ltSort.dir===1?'↑':'↓'):''}</th>`;
+  const thSort=(col,label)=>`<th onclick="sortLt('${col}')" style="cursor:pointer;text-align:${col==='valor'?'right':'left'}">${label} ${ltSort.col===col?(ltSort.dir===1?'↑':'↓'):''}</th>`;
   document.getElementById('lt-table').innerHTML=`
     <thead><tr>${thSort('data','Data')}${thSort('cat','Categoria')}<th>Subcategoria</th><th>Descrição</th><th>Tipo</th>${thSort('valor','Valor')}</tr></thead>
-    <tbody>${data.slice(0,200).map(r=>`<tr>
+    <tbody>${data.slice(0,200).map(r=>`<tr onclick="editLancamento(${r._row})" style="cursor:pointer" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
       <td class="td-muted">${r.dataISO||'—'}</td>
       <td>${r.cat}</td>
       <td class="td-muted">${r.subcat||'—'}</td>
@@ -1733,6 +1771,58 @@ function renderLancamentos(){
 }
 
 function sortLt(col){ltSort={col,dir:ltSort.col===col?-ltSort.dir:1};renderLancamentos()}
+
+let _editRow=null;
+
+function editLancamento(row){
+  const r=allData.find(d=>d._row===row);
+  if(!r)return;
+  _editRow=row;
+  document.getElementById('ed-data').value=r.dataISO||'';
+  document.getElementById('ed-valor').value=r.valor;
+  document.getElementById('ed-desc').value=r.det;
+  document.getElementById('ed-tipo').value=r.tipo;
+  // Populate cats
+  const edCat=document.getElementById('ed-cat');
+  const customCats=getCustomCats();
+  const allCats=[...new Set([...Object.keys(CATS),...despesas().map(d=>d.cat),...Object.keys(customCats)])].filter(Boolean).sort();
+  edCat.innerHTML='<option value="">—</option>'+allCats.map(c=>`<option value="${c}"${r.cat===c?' selected':''}>${c}</option>`).join('');
+  updateEdSubcats(r.subcat);
+  document.getElementById('ed-modal').classList.remove('hidden');
+}
+
+function updateEdSubcats(selectVal){
+  const cat=document.getElementById('ed-cat').value;
+  const edSub=document.getElementById('ed-subcat');
+  const dbSubs=[...new Set(despesas().filter(d=>d.cat===cat).map(d=>d.subcat))].filter(Boolean).sort();
+  const defSubs=CATS[cat]||[];
+  const customCats=getCustomCats();
+  const customSubs=customCats[cat]||[];
+  const allSubs=[...new Set([...defSubs,...dbSubs,...customSubs])].sort();
+  const val=selectVal||edSub.value;
+  edSub.innerHTML='<option value="">—</option>'+allSubs.map(s=>`<option value="${s}"${val===s?' selected':''}>${s}</option>`).join('');
+}
+
+async function saveEditLancamento(){
+  const dataVal=document.getElementById('ed-data').value;
+  const valor=parseFloat(document.getElementById('ed-valor').value);
+  const desc=document.getElementById('ed-desc').value.trim();
+  const cat=document.getElementById('ed-cat').value;
+  const sub=document.getElementById('ed-subcat').value;
+  const tipo=document.getElementById('ed-tipo').value;
+  if(!valor||valor<=0){toast('⚠ Informe um valor válido');return}
+  if(!desc){toast('⚠ Informe a descrição');return}
+  let mes='',nMes=0,ano=0;
+  if(dataVal){const[a,m]=dataVal.split('-').map(Number);ano=a;nMes=m;mes=MONTHS[m-1];}
+  const btn=event.target;btn.disabled=true;btn.textContent='Salvando...';
+  await shUpdate(`Gastos!A${_editRow}:I${_editRow}`,[[valor,dataVal,desc,mes,nMes,cat,sub,tipo,ano]]);
+  toast('✓ Lançamento atualizado!');
+  document.getElementById('ed-modal').classList.add('hidden');
+  btn.disabled=false;btn.textContent='✓ Salvar alterações';
+  await loadAllData();renderLancamentos();
+}
+
+function closeEdModal(e){if(e.target===document.getElementById('ed-modal'))document.getElementById('ed-modal').classList.add('hidden')}
 
 // ══════════════════════════════════════════════════════
 // SCREEN: SIMULADOR
