@@ -601,7 +601,7 @@ async function shClear(range){
 async function loadAllData(){
   const rows=await shGet('Gastos!A:I');
   if(rows.length>1){
-    allData=rows.slice(1).map(r=>{
+    allData=rows.slice(1).map((r,i)=>{
       let iso='';
       if(r[1]){
         if(typeof r[1]==='number'){const d=excelDate(r[1]);iso=d?toISO(d):''}
