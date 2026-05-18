@@ -550,7 +550,7 @@ const fmtK=v=>Math.abs(v)>=1000?`R$ ${(v/1000).toFixed(1)}k`:fmt(v);
 const fmtPct=v=>`${Math.round((v||0)*100)}%`;
 function toast(msg,dur=2500){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur)}
 function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id]}}
-function excelDate(n){if(!n||isNaN(n))return null;return new Date((Number(n)-25569)*86400*1000)}
+function excelDate(n){if(!n||isNaN(n))return null;const u=new Date((Number(n)-25569)*86400*1000);return new Date(u.getUTCFullYear(),u.getUTCMonth(),u.getUTCDate())}
 function toISO(d){if(!d)return'';return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function todayISO(){return toISO(new Date())}
 function daysInMonth(y,m){return new Date(y,m,0).getDate()}
