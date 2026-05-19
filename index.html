@@ -1955,6 +1955,9 @@ function simComputePatrim(scenario,year){
 function renderSimulador(){
   const cy=new Date().getFullYear(),cm=new Date().getMonth()+1;
   const screen=document.getElementById('screen-simulador');
+  try{_renderSimulador(cy,cm,screen)}catch(e){console.error('Simulador error:',e);screen.innerHTML=`<div class="card" style="color:var(--red);text-align:center;padding:30px">${e.message||'Erro ao renderizar o simulador'}</div>`}
+}
+function _renderSimulador(cy,cm,screen){
   const tabsHtml=`<div class="sim-tabs-bar">
     <button class="sim-new-tab" onclick="openNewScenModal()">＋ Novo cenário</button>
     ${sims.map(s=>`<button class="sim-tab${s.id===activeSimId?' active':''}" onclick="setActiveSim('${s.id}')">${s.nome}<span class="sim-item-del" onclick="event.stopPropagation();confirmDeleteScen('${s.id}')">✕</span></button>`).join('')}
@@ -1983,7 +1986,7 @@ function renderSimulador(){
       <button class="btn btn-sm btn-primary" onclick="openSimItemModal()">＋ Adicionar</button>
     </div>
     ${scen.items.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
-      ${scen.items.map(item=>`<div class="sim-item-pill ${item.tipo.replace('_','-')}" style="${item.tipo==='neg_fixo'?'background:rgba(94,127,68,.12);border-color:rgba(94,127,68,.5);color:var(--mid)':item.tipo==='neg_receita'?'background:rgba(192,57,43,.1);border-color:rgba(192,57,43,.4);color:var(--red)':''}">${itemPillLabel(item)}<span class="sim-item-del" onclick="deleteSimItem('${item.id}')">✕</span></div>`).join('')}
+      ${scen.items.filter(i=>i.tipo).map(item=>`<div class="sim-item-pill ${(item.tipo||'').replace('_','-')}" style="${item.tipo==='neg_fixo'?'background:rgba(94,127,68,.12);border-color:rgba(94,127,68,.5);color:var(--mid)':item.tipo==='neg_receita'?'background:rgba(192,57,43,.1);border-color:rgba(192,57,43,.4);color:var(--red)':''}">${itemPillLabel(item)}<span class="sim-item-del" onclick="deleteSimItem('${item.id}')">✕</span></div>`).join('')}
     </div>`:`<div style="font-size:13px;color:var(--muted);margin-top:8px">Nenhum item — clique em ＋ Adicionar para começar.</div>`}
   </div>`;
   // Build projection grid
@@ -1993,9 +1996,10 @@ function renderSimulador(){
   const isPastM2=m=>(simYear<cy)||(isCurYr&&m<cm);
   const isCurM2=m=>isCurYr&&m===cm;
   const gridHdr=`<div class="ay-lbl-hdr"></div>${MSHORT.map((s,i)=>{const m=i+1;return`<div class="ay-hdr${isCurM2(m)?' ay-cur-hdr':''}">${s}</div>`}).join('')}`;
+  const dayItem=scen.items.find(i=>i.tipo==='diario');
   const anyScenP=months.some(d=>d.scenP>0),anyScenF=months.some(d=>d.scenF>0),anyScenR=months.some(d=>d.scenR>0);
   const anyNegF=months.some(d=>d.negF>0),anyNegR=months.some(d=>d.negR>0);
-  const hasDiario=scen.items.some(i=>i.tipo==='diario');
+  const hasDiario=!!dayItem;
   const hasScenItems=anyScenP||anyScenF||anyNegF||anyScenR||anyNegR||hasDiario;
   let rows='';
   // helper: standard cell
@@ -2064,7 +2068,7 @@ function renderSimulador(){
   </div>`;
   const gridHtml=`<div class="ay-section"><div class="ay-sec-title">Projeção ${simYear} — ${scen.nome}</div><div class="ay-grid">${gridHdr}${rows}</div></div>`;
   screen.innerHTML=tabsHtml+yrHtml+itemsHtml+cardsHtml+gridHtml;
-}
+} // end _renderSimulador
 
 function setActiveSim(id){activeSimId=id;renderSimulador()}
 function setSimYear(y){simYear=y;renderSimulador()}
