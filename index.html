@@ -251,6 +251,8 @@ table.data tr:last-child td{border-bottom:none}
 .sim-item-pill.parcela{background:rgba(232,130,30,.1);border-color:rgba(232,130,30,.4);color:#a85c0f}
 .sim-item-pill.fixo{background:rgba(61,79,53,.1);border-color:rgba(61,79,53,.3);color:var(--dark)}
 .sim-item-pill.receita{background:rgba(94,127,68,.1);border-color:rgba(94,127,68,.4);color:var(--mid)}
+.sim-item-pill.neg_fixo{background:rgba(94,127,68,.12);border-color:rgba(94,127,68,.5);color:var(--mid)}
+.sim-item-pill.neg_receita{background:rgba(192,57,43,.1);border-color:rgba(192,57,43,.4);color:var(--red)}
 .sim-item-pill.diario{background:rgba(122,100,60,.1);border-color:rgba(122,100,60,.3);color:#7a643c}
 .sim-item-del{cursor:pointer;opacity:.5;font-size:10px;line-height:1}
 .sim-item-del:hover{opacity:1}
@@ -520,15 +522,17 @@ table.data tr:last-child td{border-bottom:none}
       <select class="fs" id="sit-tipo" onchange="updateSimItemFields()">
         <option value="parcela">📦 Nova parcela</option>
         <option value="fixo">📌 Novo gasto fixo</option>
+        <option value="neg_fixo">❌ Cancelar despesa fixa</option>
         <option value="receita">💰 Receita extra</option>
+        <option value="neg_receita">📉 Redução de receita</option>
         <option value="diario">🔄 Override gasto diário</option>
       </select>
     </div>
-    <div class="fg" id="sit-nome-fg"><label class="fl">Nome</label><input class="fi" id="sit-nome" placeholder="Ex: iPhone 16, Academia, Freelance"></div>
+    <div class="fg" id="sit-nome-fg"><label class="fl">Nome</label><input class="fi" id="sit-nome" placeholder="Ex: iPhone 16, Total Pass, Freelance"></div>
     <div class="fg"><label class="fl" id="sit-valor-lbl">Valor por parcela (R$)</label><input class="fi" id="sit-valor" type="number" step="0.01" placeholder="0,00"></div>
     <div id="sit-start-fg">
       <div class="fi-row">
-        <div class="fg"><label class="fl">Mês início</label><input class="fi" id="sit-startm" type="number" min="1" max="12" placeholder="1–12"></div>
+        <div class="fg"><label class="fl" id="sit-start-lbl">Mês início</label><input class="fi" id="sit-startm" type="number" min="1" max="12" placeholder="1–12"></div>
         <div class="fg"><label class="fl">Ano início</label><input class="fi" id="sit-starta" type="number" placeholder="2026"></div>
       </div>
     </div>
@@ -674,8 +678,10 @@ async function loadSims(){
     if(!scenMap[cenId]){scenMap[cenId]={id:cenId,nome:cenNome,items:[]};sims.push(scenMap[cenId])}
     if(!itemId)continue;
     const tipo=r[3],item={id:itemId,tipo,nome:r[4]||'',valor:parseFloat(r[5])||0};
-    if(tipo==='parcela'){item.startMes=parseInt(r[6])||1;item.startAno=parseInt(r[7])||new Date().getFullYear();item.numParcelas=parseInt(r[8])||1}
-    else if(tipo==='fixo'||tipo==='receita'){item.startMes=parseInt(r[6])||1;item.startAno=parseInt(r[7])||new Date().getFullYear();item.endMes=parseInt(r[8])||12;item.endAno=parseInt(r[9])||new Date().getFullYear()}
+    const cy=new Date().getFullYear();
+    if(tipo==='parcela'){item.startMes=parseInt(r[6])||1;item.startAno=parseInt(r[7])||cy;item.numParcelas=parseInt(r[8])||1}
+    else if(tipo==='fixo'||tipo==='receita'||tipo==='neg_fixo'||tipo==='neg_receita'){item.startMes=parseInt(r[6])||1;item.startAno=parseInt(r[7])||cy;item.endMes=parseInt(r[8])||12;item.endAno=parseInt(r[9])||cy}
+    else if(tipo==='diario'){item.startMes=parseInt(r[6])||1;item.startAno=parseInt(r[7])||cy}
     scenMap[cenId].items.push(item);
   }
   if(sims.length&&!activeSimId)activeSimId=sims[0].id;
@@ -1894,10 +1900,15 @@ function simBaseFixos(year,m){
   return activeF.reduce((s,det)=>s+ultiV(det),0)
 }
 function simBaseParcelas(year,m){return allData.filter(r=>r.tipo==='Parcela'&&r.ano===year&&r.nMes===m).reduce((s,r)=>s+r.valor,0)}
-function simBaseDiario(year,m,dayOverride){
+function simBaseDiario(year,m,scenario){
   const t=new Date(),cy=t.getFullYear(),cm=t.getMonth()+1;
   const isPast=(year<cy)||(year===cy&&m<cm),isCur=(year===cy&&m===cm);
-  const ds=dayOverride||(sheetCfg.settings.gasto_diario||60);
+  // Find active diario override: most recently started one that covers this month
+  const k=year*12+m-1;
+  const activeDay=(scenario?.items||[]).filter(i=>i.tipo==='diario').filter(i=>{
+    const start=(i.startAno||cy)*12+(i.startMes||cm)-1;return k>=start;
+  }).sort((a,b)=>(b.startAno*12+b.startMes)-(a.startAno*12+a.startMes))[0];
+  const ds=activeDay?.valor||(sheetCfg.settings.gasto_diario||60);
   if(isPast)return allData.filter(r=>r.tipo==='Diario'&&r.ano===year&&r.nMes===m).reduce((s,r)=>s+r.valor,0);
   if(isCur){const act=allData.filter(r=>r.tipo==='Diario'&&r.ano===year&&r.nMes===m).reduce((s,r)=>s+r.valor,0);return act+(daysInMonth(year,m)-t.getDate())*ds}
   return ds*daysInMonth(year,m)
@@ -1905,19 +1916,20 @@ function simBaseDiario(year,m,dayOverride){
 function simItemActive(item,year,m){
   const k=year*12+m-1;
   if(item.tipo==='parcela'){const s=item.startAno*12+item.startMes-1;return k>=s&&k<=s+(item.numParcelas-1)}
-  if(item.tipo==='fixo'||item.tipo==='receita'){const s=item.startAno*12+item.startMes-1,e=item.endAno*12+item.endMes-1;return k>=s&&k<=e}
+  if(item.tipo==='fixo'||item.tipo==='receita'||item.tipo==='neg_fixo'||item.tipo==='neg_receita'){const s=item.startAno*12+item.startMes-1,e=item.endAno*12+item.endMes-1;return k>=s&&k<=e}
   return false
 }
 function simMonthData(scenario,year,m){
-  const dayOverride=scenario?.items.find(i=>i.tipo==='diario')?.valor||null;
-  const baseF=simBaseFixos(year,m),baseP=simBaseParcelas(year,m),baseD=simBaseDiario(year,m,dayOverride),baseInc=incomeForMonth(year,m);
+  const baseF=simBaseFixos(year,m),baseP=simBaseParcelas(year,m),baseD=simBaseDiario(year,m,scenario),baseInc=incomeForMonth(year,m);
   const items=scenario?.items||[];
   const scenP=items.filter(i=>i.tipo==='parcela'&&simItemActive(i,year,m)).reduce((s,i)=>s+i.valor,0);
   const scenF=items.filter(i=>i.tipo==='fixo'&&simItemActive(i,year,m)).reduce((s,i)=>s+i.valor,0);
+  const negF=items.filter(i=>i.tipo==='neg_fixo'&&simItemActive(i,year,m)).reduce((s,i)=>s+i.valor,0);
   const scenR=items.filter(i=>i.tipo==='receita'&&simItemActive(i,year,m)).reduce((s,i)=>s+i.valor,0);
-  const totDesp=baseF+baseP+baseD+scenP+scenF,totInc=baseInc+scenR;
+  const negR=items.filter(i=>i.tipo==='neg_receita'&&simItemActive(i,year,m)).reduce((s,i)=>s+i.valor,0);
+  const totDesp=baseF+baseP+baseD+scenP+scenF-negF,totInc=baseInc+scenR-negR;
   const saldo=totInc-totDesp,baseSaldo=baseInc-(baseF+baseP+baseD);
-  return{m,baseF,baseP,baseD,baseInc,scenP,scenF,scenR,totDesp,totInc,saldo,delta:saldo-baseSaldo}
+  return{m,baseF,baseP,baseD,baseInc,scenP,scenF,negF,scenR,negR,totDesp,totInc,saldo,delta:saldo-baseSaldo}
 }
 function simComputePatrim(scenario,year){
   const hist=patrimonyAccum();
@@ -1955,22 +1967,23 @@ function renderSimulador(){
   const yrHtml=`<div class="sim-yr-bar"><button class="sim-yr-btn${simYear===cy?' active':''}" onclick="setSimYear(${cy})">${cy}</button><button class="sim-yr-btn${simYear===cy+1?' active':''}" onclick="setSimYear(${cy+1})">${cy+1}</button></div>`;
   if(!scen){screen.innerHTML=tabsHtml+yrHtml;return}
   // Items card
-  const dayItem=scen.items.find(i=>i.tipo==='diario');
-  const otherItems=scen.items.filter(i=>i.tipo!=='diario');
+  const itemPillLabel=(item)=>{
+    const range=item.endMes?`${MSHORT[item.startMes-1]}/${String(item.startAno).slice(2)}→${MSHORT[item.endMes-1]}/${String(item.endAno).slice(2)}`:`a partir ${MSHORT[item.startMes-1]}/${String(item.startAno).slice(2)}`;
+    if(item.tipo==='parcela')return`📦 ${item.nome} ${fmt(item.valor)}×${item.numParcelas} a partir ${MSHORT[item.startMes-1]}/${String(item.startAno).slice(2)}`;
+    if(item.tipo==='fixo')return`📌 ${item.nome} ${fmt(item.valor)}/mês ${range}`;
+    if(item.tipo==='neg_fixo')return`❌ −${item.nome} ${fmt(item.valor)}/mês ${range}`;
+    if(item.tipo==='receita')return`💰 +${item.nome} ${fmt(item.valor)}/mês ${range}`;
+    if(item.tipo==='neg_receita')return`📉 −${item.nome} ${fmt(item.valor)}/mês ${range}`;
+    if(item.tipo==='diario')return`🔄 R$${item.valor}/dia a partir ${MSHORT[(item.startMes||1)-1]}/${String(item.startAno||cy).slice(2)}`;
+    return item.nome||item.tipo;
+  };
   const itemsHtml=`<div class="card" style="margin-bottom:12px">
     <div class="fl-row" style="margin-bottom:${scen.items.length?'10':'0'}px">
       <div class="card-title" style="margin-bottom:0">Itens do cenário</div>
       <button class="btn btn-sm btn-primary" onclick="openSimItemModal()">＋ Adicionar</button>
     </div>
     ${scen.items.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
-      ${dayItem?`<div class="sim-item-pill diario">🔄 Diário: R$${dayItem.valor}/dia <span class="sim-item-del" onclick="deleteSimItem('${dayItem.id}')">✕</span></div>`:''}
-      ${otherItems.map(item=>{
-        let lbl='';
-        if(item.tipo==='parcela')lbl=`📦 ${item.nome} ${fmt(item.valor)}×${item.numParcelas} a partir ${MSHORT[item.startMes-1]}/${String(item.startAno).slice(2)}`;
-        else if(item.tipo==='fixo')lbl=`📌 ${item.nome} ${fmt(item.valor)}/mês ${MSHORT[item.startMes-1]}/${String(item.startAno).slice(2)}→${MSHORT[item.endMes-1]}/${String(item.endAno).slice(2)}`;
-        else lbl=`＋Receita ${item.nome} ${fmt(item.valor)} ${MSHORT[item.startMes-1]}/${String(item.startAno).slice(2)}→${MSHORT[item.endMes-1]}/${String(item.endAno).slice(2)}`;
-        return`<div class="sim-item-pill ${item.tipo}">${lbl}<span class="sim-item-del" onclick="deleteSimItem('${item.id}')">✕</span></div>`;
-      }).join('')}
+      ${scen.items.map(item=>`<div class="sim-item-pill ${item.tipo.replace('_','-')}" style="${item.tipo==='neg_fixo'?'background:rgba(94,127,68,.12);border-color:rgba(94,127,68,.5);color:var(--mid)':item.tipo==='neg_receita'?'background:rgba(192,57,43,.1);border-color:rgba(192,57,43,.4);color:var(--red)':''}">${itemPillLabel(item)}<span class="sim-item-del" onclick="deleteSimItem('${item.id}')">✕</span></div>`).join('')}
     </div>`:`<div style="font-size:13px;color:var(--muted);margin-top:8px">Nenhum item — clique em ＋ Adicionar para começar.</div>`}
   </div>`;
   // Build projection grid
@@ -1981,7 +1994,9 @@ function renderSimulador(){
   const isCurM2=m=>isCurYr&&m===cm;
   const gridHdr=`<div class="ay-lbl-hdr"></div>${MSHORT.map((s,i)=>{const m=i+1;return`<div class="ay-hdr${isCurM2(m)?' ay-cur-hdr':''}">${s}</div>`}).join('')}`;
   const anyScenP=months.some(d=>d.scenP>0),anyScenF=months.some(d=>d.scenF>0),anyScenR=months.some(d=>d.scenR>0);
-  const hasScenItems=anyScenP||anyScenF||anyScenR||dayItem;
+  const anyNegF=months.some(d=>d.negF>0),anyNegR=months.some(d=>d.negR>0);
+  const hasDiario=scen.items.some(i=>i.tipo==='diario');
+  const hasScenItems=anyScenP||anyScenF||anyNegF||anyScenR||anyNegR||hasDiario;
   let rows='';
   // helper: standard cell
   const cell=(val,m,bg='',color='',style='')=>{const op=isPastM2(m)?';opacity:.6':'';return`<div class="ay-cell${isCurM2(m)?' ay-cur':''}" style="${bg}${op}">${val>0?`<span class="ay-v" style="${color}${style}">${fmtK(val)}</span>`:'<span class="ay-dash">—</span>'}</div>`};
@@ -2003,12 +2018,23 @@ function renderSimulador(){
     rows+=`<div class="ay-lbl" style="font-size:9px;color:var(--dark);font-style:italic;background:rgba(61,79,53,.08)">＋ Fixos cenário</div>`;
     months.forEach(d=>{const op=isPastM2(d.m)?';opacity:.6':'';rows+=`<div class="ay-cell${isCurM2(d.m)?' ay-cur':''}" style="background:rgba(61,79,53,.05)${op}">${d.scenF>0?`<span class="ay-v" style="color:var(--dark);font-style:italic">${fmtK(d.scenF)}</span>`:'<span class="ay-dash">—</span>'}</div>`});
   }
+  if(anyNegF){
+    rows+=`<div class="ay-lbl" style="font-size:9px;color:var(--mid);font-style:italic;background:rgba(94,127,68,.08)">− Cancelamentos</div>`;
+    months.forEach(d=>{const op=isPastM2(d.m)?';opacity:.6':'';rows+=`<div class="ay-cell${isCurM2(d.m)?' ay-cur':''}" style="background:rgba(94,127,68,.05)${op}">${d.negF>0?`<span class="ay-v" style="color:var(--mid);font-style:italic">−${fmtK(d.negF)}</span>`:'<span class="ay-dash">—</span>'}</div>`});
+  }
   // Receita
-  rows+=`<div class="ay-lbl" style="font-size:9px;background:rgba(94,127,68,.1)">Receita${anyScenR?' ＋extra':''}</div>`;
+  rows+=`<div class="ay-lbl" style="font-size:9px;background:rgba(94,127,68,.1)">Receita${anyScenR?' ＋extra':''}${anyNegR?' −red.':''}</div>`;
   months.forEach(d=>{const op=isPastM2(d.m)?';opacity:.6':'';rows+=`<div class="ay-cell${isCurM2(d.m)?' ay-cur':''}" style="background:rgba(94,127,68,.06)${op}"><span class="ay-v" style="color:var(--mid)">${fmtK(d.totInc)}</span></div>`});
+  if(anyNegR){
+    rows+=`<div class="ay-lbl" style="font-size:9px;color:var(--red);font-style:italic;background:rgba(192,57,43,.06)">− Red. receita</div>`;
+    months.forEach(d=>{const op=isPastM2(d.m)?';opacity:.6':'';rows+=`<div class="ay-cell${isCurM2(d.m)?' ay-cur':''}" style="background:rgba(192,57,43,.04)${op}">${d.negR>0?`<span class="ay-v" style="color:var(--red);font-style:italic">−${fmtK(d.negR)}</span>`:'<span class="ay-dash">—</span>'}</div>`});
+  }
   // Saldo
   rows+=`<div class="ay-lbl" style="font-size:9px;font-weight:700;background:var(--dark);color:#fff">Saldo</div>`;
   months.forEach(d=>{const op=isPastM2(d.m)?';opacity:.6':'';const pos=d.saldo>=0;rows+=`<div class="ay-cell${isCurM2(d.m)?' ay-cur':''}" style="background:rgba(61,79,53,.06)${op}"><span class="ay-v ${pos?'pos':'neg'}" style="font-weight:800">${d.saldo>=0?'':'-'}${fmtK(Math.abs(d.saldo))}</span></div>`});
+  // % Economia
+  rows+=`<div class="ay-lbl" style="font-size:9px;font-weight:600">% Eco.</div>`;
+  months.forEach(d=>{const op=isPastM2(d.m)?';opacity:.6':'';const pct=d.totInc>0?Math.round(d.saldo/d.totInc*100):0;const col=pct>=20?'var(--mid)':pct>=0?'var(--orange)':'var(--red)';rows+=`<div class="ay-cell${isCurM2(d.m)?' ay-cur':''}" style="${op}"><span class="ay-v" style="color:${col};font-weight:800">${pct}%</span></div>`});
   // Delta vs base
   if(hasScenItems){
     rows+=`<div class="ay-lbl" style="font-size:9px;font-style:italic;color:var(--orange)">Δ vs. base</div>`;
@@ -2017,8 +2043,27 @@ function renderSimulador(){
   // Patrimônio
   rows+=`<div class="ay-lbl" style="font-size:9px;font-weight:700;background:var(--cream)">Patrimônio</div>`;
   patrim.forEach((p,i)=>{const m=i+1;const op=isPastM2(m)?';opacity:.6':'';rows+=`<div class="ay-cell${isCurM2(m)?' ay-cur':''}" style="background:rgba(232,223,192,.35)${op}"><span class="ay-v" style="font-weight:800;color:${p>=0?'var(--dark)':'var(--red)'}">${fmtK(p)}</span></div>`});
+  // Annual summary cards
+  const totGasto=months.reduce((s,d)=>s+d.totDesp,0);
+  const totReceita=months.reduce((s,d)=>s+d.totInc,0);
+  const pctAnual=totReceita>0?Math.round(totGasto/totReceita*100):0;
+  const colPct=pctAnual<=75?'var(--mid)':pctAnual<=100?'var(--orange)':'var(--red)';
+  const cardsHtml=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+    <div class="card" style="text-align:center;margin-bottom:0;padding:12px 8px">
+      <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Gasto ${simYear}</div>
+      <div style="font-size:15px;font-weight:800;color:var(--red)">${fmtK(totGasto)}</div>
+    </div>
+    <div class="card" style="text-align:center;margin-bottom:0;padding:12px 8px">
+      <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Receita ${simYear}</div>
+      <div style="font-size:15px;font-weight:800;color:var(--mid)">${fmtK(totReceita)}</div>
+    </div>
+    <div class="card" style="text-align:center;margin-bottom:0;padding:12px 8px">
+      <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">% de gasto</div>
+      <div style="font-size:15px;font-weight:800;color:${colPct}">${pctAnual}%</div>
+    </div>
+  </div>`;
   const gridHtml=`<div class="ay-section"><div class="ay-sec-title">Projeção ${simYear} — ${scen.nome}</div><div class="ay-grid">${gridHdr}${rows}</div></div>`;
-  screen.innerHTML=tabsHtml+yrHtml+itemsHtml+gridHtml;
+  screen.innerHTML=tabsHtml+yrHtml+itemsHtml+cardsHtml+gridHtml;
 }
 
 function setActiveSim(id){activeSimId=id;renderSimulador()}
@@ -2051,7 +2096,8 @@ async function saveSimsToSheet(){
     for(const item of s.items){
       const row=[s.id,s.nome,item.id,item.tipo,item.nome||'',item.valor,'','','',''];
       if(item.tipo==='parcela'){row[6]=item.startMes;row[7]=item.startAno;row[8]=item.numParcelas}
-      else if(item.tipo==='fixo'||item.tipo==='receita'){row[6]=item.startMes;row[7]=item.startAno;row[8]=item.endMes;row[9]=item.endAno}
+      else if(item.tipo==='fixo'||item.tipo==='receita'||item.tipo==='neg_fixo'||item.tipo==='neg_receita'){row[6]=item.startMes;row[7]=item.startAno;row[8]=item.endMes;row[9]=item.endAno}
+      else if(item.tipo==='diario'){row[6]=item.startMes||1;row[7]=item.startAno||new Date().getFullYear()}
       rows.push(row);
     }
   }
@@ -2076,10 +2122,13 @@ function closeSimItemModal(e){if(!e||e.target===document.getElementById('sim-ite
 function updateSimItemFields(){
   const tipo=document.getElementById('sit-tipo').value;
   document.getElementById('sit-nome-fg').style.display=tipo==='diario'?'none':'';
-  document.getElementById('sit-start-fg').style.display=tipo==='diario'?'none':'';
+  document.getElementById('sit-start-fg').style.display=''; // always show
   document.getElementById('sit-numparc-fg').style.display=tipo==='parcela'?'':'none';
-  document.getElementById('sit-end-fg').style.display=(tipo==='fixo'||tipo==='receita')?'':'none';
-  document.getElementById('sit-valor-lbl').textContent=tipo==='diario'?'Gasto diário (R$/dia)':tipo==='receita'?'Valor (R$/mês)':'Valor por parcela (R$)';
+  document.getElementById('sit-end-fg').style.display=(tipo==='fixo'||tipo==='receita'||tipo==='neg_fixo'||tipo==='neg_receita')?'':'none';
+  const startLbl=document.getElementById('sit-start-lbl');
+  if(startLbl)startLbl.textContent=tipo==='diario'?'A partir de (mês)':'Mês início';
+  const vlbl=document.getElementById('sit-valor-lbl');
+  vlbl.textContent=tipo==='diario'?'Gasto diário (R$/dia)':tipo==='receita'?'Valor extra (R$/mês)':tipo==='neg_receita'?'Redução de receita (R$/mês)':tipo==='neg_fixo'?'Valor a cancelar (R$/mês)':'Valor por parcela (R$)';
 }
 async function saveSimItem(){
   const tipo=document.getElementById('sit-tipo').value;
@@ -2087,19 +2136,20 @@ async function saveSimItem(){
   if(!valor){toast('⚠ Informe o valor');return}
   const scen=getActiveSim();if(!scen)return;
   const item={id:String(Date.now()),tipo,valor};
+  const cy=new Date().getFullYear(),cm=new Date().getMonth()+1;
+  item.startMes=parseInt(document.getElementById('sit-startm').value)||cm;
+  item.startAno=parseInt(document.getElementById('sit-starta').value)||cy;
   if(tipo==='diario'){
-    scen.items=scen.items.filter(i=>i.tipo!=='diario');
+    // allow multiple diario overrides at different start dates
   }else{
     const nome=document.getElementById('sit-nome').value.trim();
     if(!nome){toast('⚠ Informe o nome');return}
     item.nome=nome;
-    item.startMes=parseInt(document.getElementById('sit-startm').value)||1;
-    item.startAno=parseInt(document.getElementById('sit-starta').value)||new Date().getFullYear();
     if(tipo==='parcela'){
       item.numParcelas=parseInt(document.getElementById('sit-numparc').value)||1;
     }else{
       item.endMes=parseInt(document.getElementById('sit-endm').value)||12;
-      item.endAno=parseInt(document.getElementById('sit-enda').value)||new Date().getFullYear();
+      item.endAno=parseInt(document.getElementById('sit-enda').value)||cy;
     }
   }
   scen.items.push(item);
