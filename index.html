@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Controle Financeiro</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#3D4F35">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finanças">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://accounts.google.com/gsi/client"></script>
@@ -289,6 +294,23 @@ table.data tr:last-child td{border-bottom:none}
 .tag{display:inline-block;background:var(--cream);color:var(--dark);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}
 .info-row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px}
 @media(min-width:600px){.sum-grid{grid-template-columns:repeat(4,1fr)}}
+
+/* ── MOBILE RESPONSIVE ───────────────────────────── */
+@media(max-width:700px){
+  .content{padding:10px;padding-bottom:80px}
+  .app-title{font-size:13px}
+  .hdr-btn{padding:5px 8px;font-size:12px}
+  .ay-hm-grid{grid-template-columns:repeat(2,1fr)!important;gap:6px!important;padding:8px!important}
+  .ay-hm-month{padding:6px 5px 4px}
+  .fi-row{grid-template-columns:1fr 1fr}
+  .sum-grid-3{grid-template-columns:repeat(3,1fr)}
+  .toggle-btn{font-size:11px;padding:6px 4px}
+  .dtab{padding:6px 10px;font-size:11px}
+  .chart-box{height:180px}
+  .chart-box.tall{height:220px}
+  .sim-tabs-bar{gap:4px}
+  .sim-tab,.sim-new-tab{padding:4px 10px;font-size:11px}
+}
 </style>
 </head>
 <body>
@@ -562,6 +584,7 @@ let activeScreen='diario', dashTab='geral', diarioView='mensal';
 let diarioMonth=new Date().getMonth()+1, diarioYear=new Date().getFullYear();
 let lancarType='diario', ltSort={col:'data',dir:-1};
 let simYear=new Date().getFullYear(), activeSimId=null;
+let annualMobileStart=Math.max(1,new Date().getMonth()), simMobileStart=Math.max(1,new Date().getMonth());
 let dashFilters={anos:[],meses:[],cats:[],subcats:[]};
 let balFilters={ano:'',mes:''};
 let _msListenerAdded=false;
@@ -587,6 +610,7 @@ const PALETTE=['#3D4F35','#5E7F44','#E8821E','#7A9B5C','#B5925A','#C0392B','#8B6
 const fmt=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0);
 const fmtK=v=>Math.abs(v)>=1000?`R$ ${(v/1000).toFixed(1)}k`:fmt(v);
 const fmtPct=v=>`${Math.round((v||0)*100)}%`;
+function isMobile(){return window.innerWidth<=700}
 function toast(msg,dur=2500){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur)}
 function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id]}}
 function excelDate(n){if(!n||isNaN(n))return null;const u=new Date((Number(n)-25569)*86400*1000);return new Date(u.getUTCFullYear(),u.getUTCMonth(),u.getUTCDate())}
@@ -1054,18 +1078,24 @@ function renderDiarioAnual(){
   }
   const anoEcon=anoRec>0?(anoRec-anoDesp)/anoRec:0;
 
+  // Mobile-aware month list
+  const mobile=isMobile();
+  const mList=mobile
+    ?[annualMobileStart,annualMobileStart+1,annualMobileStart+2].filter(m=>m>=1&&m<=12)
+    :Array.from({length:12},(_,i)=>i+1);
+  const gridCols=`90px repeat(${mList.length},1fr)`;
+
   // Shared month header strip
-  const mHdrs=MSHORT.map((s,i)=>{
-    const m=i+1;
-    return`<div class="ay-hdr${isCurM(m)?' ay-cur-hdr':''}">${s}</div>`;
+  const mHdrs=mList.map(m=>{
+    return`<div class="ay-hdr${isCurM(m)?' ay-cur-hdr':''}">${MSHORT[m-1]}</div>`;
   }).join('');
   const gridHdr=`<div class="ay-lbl-hdr"></div>${mHdrs}`;
 
   // ─── 1. ENTRADAS ─────────────────────────────────────
-  const entVals=Array.from({length:12},(_,i)=>incomeForMonth(year,i+1));
-  const maxEnt=Math.max(...entVals,1);
-  const entCells=entVals.map((v,i)=>{
-    const m=i+1;const pct=Math.round(v/maxEnt*75);
+  const entValsAll=Array.from({length:12},(_,i)=>incomeForMonth(year,i+1));
+  const maxEnt=Math.max(...entValsAll,1);
+  const entCells=mList.map(m=>{
+    const v=entValsAll[m-1];const pct=Math.round(v/maxEnt*75);
     return`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="min-height:48px;align-items:flex-end;padding-bottom:5px" title="${fmt(v)}">
       <div class="ay-bar" style="height:${pct}%"></div>
       <span class="ay-v pos">${v>0?fmtK(v):'—'}</span>
@@ -1078,7 +1108,7 @@ function renderDiarioAnual(){
     const alt=ri%2===1;
     const linhas=fixosAno.filter(r=>r.det===det);
     fixoGridInner+=`<div class="ay-lbl${alt?' ay-alt':''}" style="font-size:10px">${det}</div>`;
-    for(let m=1;m<=12;m++){
+    for(const m of mList){
       const row=linhas.find(r=>r.nMes===m);
       if(row){
         fixoGridInner+=`<div class="ay-cell${alt?' ay-alt':''}${isCurM(m)?' ay-cur':''}">
@@ -1096,7 +1126,7 @@ function renderDiarioAnual(){
   // Linha total de fixos por mês
   if(fixoNomes.length){
     fixoGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(232,223,192,.5)">Total</div>`;
-    for(let m=1;m<=12;m++){
+    for(const m of mList){
       const tot=estimaFixosMes(m);
       const isEst=!isPastM(m)&&fixoNomes.some(d=>!fixosAno.find(r=>r.det===d&&r.nMes===m));
       fixoGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="background:rgba(232,223,192,.5)">
@@ -1113,7 +1143,7 @@ function renderDiarioAnual(){
     const todas=allParcDB.filter(r=>r.det===det).sort((a,b)=>a.ano*12+a.nMes-(b.ano*12+b.nMes));
     const total=todas.length;const bg=PBG[ri%PBG.length],fg=PFG[ri%PFG.length];
     parcGridInner+=`<div class="ay-lbl" style="font-size:10px">${det}</div>`;
-    for(let m=1;m<=12;m++){
+    for(const m of mList){
       const row=todas.find(r=>r.ano===year&&r.nMes===m);
       if(row){
         const idx=todas.findIndex(r=>r.ano===year&&r.nMes===m);
@@ -1131,7 +1161,7 @@ function renderDiarioAnual(){
   // Linha de total de parcelas por mês
   if(parcNomes.length){
     parcGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(232,223,192,.45)">Total Parc.</div>`;
-    for(let m=1;m<=12;m++){
+    for(const m of mList){
       const tot=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+r.valor,0);
       parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="background:rgba(232,223,192,.45)">
         ${tot>0?`<span class="ay-v" style="font-weight:800">${fmtK(tot)}</span>`:`<span class="ay-dash">—</span>`}
@@ -1141,7 +1171,7 @@ function renderDiarioAnual(){
   // Linha % (fixos + parcelas) / receita
   if(fixoNomes.length||parcNomes.length){
     parcGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(61,79,53,.09)">% s/ Receita</div>`;
-    for(let m=1;m<=12;m++){
+    for(const m of mList){
       const inc=incomeForMonth(year,m);
       const fixTot=estimaFixosMes(m);
       const parcTot=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+r.valor,0);
@@ -1237,22 +1267,29 @@ function renderDiarioAnual(){
   let indCells='';
   indDefs.forEach(({label,alt,fn})=>{
     indCells+=`<div class="ay-lbl${alt?' ay-alt':''}">${label}</div>`;
-    for(let m=1;m<=12;m++){
+    for(const m of mList){
       indCells+=`<div class="ay-cell${alt?' ay-alt':''}${isCurM(m)?' ay-cur':''}">${fn(m)}</div>`;
     }
   });
 
   // ─── OUTPUT ───────────────────────────────────────────
+  const mobileMonthNav=mobile?`
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px">
+      <button class="btn-icon" onclick="annualMobileStart=Math.max(1,annualMobileStart-1);renderDiario()" ${annualMobileStart<=1?'disabled style="opacity:.3"':''}>‹</button>
+      <span style="font-size:13px;font-weight:700;color:var(--dark)">${MSHORT[mList[0]-1]} – ${MSHORT[mList[mList.length-1]-1]}</span>
+      <button class="btn-icon" onclick="annualMobileStart=Math.min(10,annualMobileStart+1);renderDiario()" ${annualMobileStart>=10?'disabled style="opacity:.3"':''}>›</button>
+    </div>`:'';
   document.getElementById('diario-content').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <button class="btn-icon" onclick="diarioYear--;renderDiario()">‹</button>
       <span style="font-size:17px;font-weight:700;color:var(--dark)">${year}</span>
       <button class="btn-icon" onclick="diarioYear++;renderDiario()">›</button>
     </div>
+    ${mobileMonthNav}
 
     <div class="ay-section">
       <div class="ay-sec-title">Entradas</div>
-      <div class="ay-grid">
+      <div class="ay-grid" style="grid-template-columns:${gridCols}">
         ${gridHdr}
         <div class="ay-lbl"></div>${entCells}
       </div>
@@ -1261,14 +1298,14 @@ function renderDiarioAnual(){
     <div class="ay-section">
       <div class="ay-sec-title">Gastos Fixos <span style="font-size:8px;font-weight:400;opacity:.55">itálico = estimativa</span></div>
       ${fixoNomes.length
-        ?`<div class="ay-grid">${gridHdr}${fixoGridInner}</div>`
+        ?`<div class="ay-grid" style="grid-template-columns:${gridCols}">${gridHdr}${fixoGridInner}</div>`
         :`<div class="ay-sec-empty">Nenhum fixo registrado em ${year}</div>`}
     </div>
 
     <div class="ay-section">
       <div class="ay-sec-title">Parcelas</div>
       ${parcNomes.length
-        ?`<div class="ay-grid">${gridHdr}${parcGridInner}</div>`
+        ?`<div class="ay-grid" style="grid-template-columns:${gridCols}">${gridHdr}${parcGridInner}</div>`
         :`<div class="ay-sec-empty">Nenhuma parcela ativa em ${year}</div>`}
     </div>
 
@@ -1279,7 +1316,7 @@ function renderDiarioAnual(){
 
     <div class="ay-section">
       <div class="ay-sec-title">Indicadores <span style="font-size:8px;font-weight:400;opacity:.55">itálico = estimativa</span></div>
-      <div class="ay-grid">
+      <div class="ay-grid" style="grid-template-columns:${gridCols}">
         ${gridHdr}
         ${indCells}
       </div>
@@ -1990,15 +2027,22 @@ function _renderSimulador(cy,cm,screen){
     </div>`:`<div style="font-size:13px;color:var(--muted);margin-top:8px">Nenhum item — clique em ＋ Adicionar para começar.</div>`}
   </div>`;
   // Build projection grid
-  const months=Array.from({length:12},(_,i)=>simMonthData(scen,simYear,i+1));
+  const allMonths=Array.from({length:12},(_,i)=>simMonthData(scen,simYear,i+1));
   const patrim=simComputePatrim(scen,simYear);
   const isCurYr=simYear===cy;
   const isPastM2=m=>(simYear<cy)||(isCurYr&&m<cm);
   const isCurM2=m=>isCurYr&&m===cm;
-  const gridHdr=`<div class="ay-lbl-hdr"></div>${MSHORT.map((s,i)=>{const m=i+1;return`<div class="ay-hdr${isCurM2(m)?' ay-cur-hdr':''}">${s}</div>`}).join('')}`;
+  // Mobile-aware month list for simulator
+  const simMobile=isMobile();
+  const simMList=simMobile
+    ?[simMobileStart,simMobileStart+1,simMobileStart+2].filter(m=>m>=1&&m<=12)
+    :Array.from({length:12},(_,i)=>i+1);
+  const simGridCols=`90px repeat(${simMList.length},1fr)`;
+  const months=simMobile?simMList.map(m=>allMonths[m-1]):allMonths;
+  const gridHdr=`<div class="ay-lbl-hdr"></div>${simMList.map(m=>`<div class="ay-hdr${isCurM2(m)?' ay-cur-hdr':''}">${MSHORT[m-1]}</div>`).join('')}`;
   const dayItem=scen.items.find(i=>i.tipo==='diario');
-  const anyScenP=months.some(d=>d.scenP>0),anyScenF=months.some(d=>d.scenF>0),anyScenR=months.some(d=>d.scenR>0);
-  const anyNegF=months.some(d=>d.negF>0),anyNegR=months.some(d=>d.negR>0);
+  const anyScenP=allMonths.some(d=>d.scenP>0),anyScenF=allMonths.some(d=>d.scenF>0),anyScenR=allMonths.some(d=>d.scenR>0);
+  const anyNegF=allMonths.some(d=>d.negF>0),anyNegR=allMonths.some(d=>d.negR>0);
   const hasDiario=!!dayItem;
   const hasScenItems=anyScenP||anyScenF||anyNegF||anyScenR||anyNegR||hasDiario;
   let rows='';
@@ -2046,10 +2090,10 @@ function _renderSimulador(cy,cm,screen){
   }
   // Patrimônio
   rows+=`<div class="ay-lbl" style="font-size:9px;font-weight:700;background:var(--cream)">Patrimônio</div>`;
-  patrim.forEach((p,i)=>{const m=i+1;const op=isPastM2(m)?';opacity:.6':'';rows+=`<div class="ay-cell${isCurM2(m)?' ay-cur':''}" style="background:rgba(232,223,192,.35)${op}"><span class="ay-v" style="font-weight:800;color:${p>=0?'var(--dark)':'var(--red)'}">${fmtK(p)}</span></div>`});
-  // Annual summary cards
-  const totGasto=months.reduce((s,d)=>s+d.totDesp,0);
-  const totReceita=months.reduce((s,d)=>s+d.totInc,0);
+  simMList.forEach(m=>{const p=patrim[m-1];const op=isPastM2(m)?';opacity:.6':'';rows+=`<div class="ay-cell${isCurM2(m)?' ay-cur':''}" style="background:rgba(232,223,192,.35)${op}"><span class="ay-v" style="font-weight:800;color:${p>=0?'var(--dark)':'var(--red)'}">${fmtK(p)}</span></div>`});
+  // Annual summary cards (always full year)
+  const totGasto=allMonths.reduce((s,d)=>s+d.totDesp,0);
+  const totReceita=allMonths.reduce((s,d)=>s+d.totInc,0);
   const pctAnual=totReceita>0?Math.round(totGasto/totReceita*100):0;
   const colPct=pctAnual<=75?'var(--mid)':pctAnual<=100?'var(--orange)':'var(--red)';
   const cardsHtml=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
@@ -2066,7 +2110,13 @@ function _renderSimulador(cy,cm,screen){
       <div style="font-size:15px;font-weight:800;color:${colPct}">${pctAnual}%</div>
     </div>
   </div>`;
-  const gridHtml=`<div class="ay-section"><div class="ay-sec-title">Projeção ${simYear} — ${scen.nome}</div><div class="ay-grid">${gridHdr}${rows}</div></div>`;
+  const simMobileNav=simMobile?`
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px">
+      <button class="btn-icon" onclick="simMobileStart=Math.max(1,simMobileStart-1);renderSimulador()" ${simMobileStart<=1?'disabled style="opacity:.3"':''}>‹</button>
+      <span style="font-size:13px;font-weight:700;color:var(--dark)">${MSHORT[simMList[0]-1]} – ${MSHORT[simMList[simMList.length-1]-1]}</span>
+      <button class="btn-icon" onclick="simMobileStart=Math.min(10,simMobileStart+1);renderSimulador()" ${simMobileStart>=10?'disabled style="opacity:.3"':''}>›</button>
+    </div>`:'';
+  const gridHtml=`<div class="ay-section"><div class="ay-sec-title">Projeção ${simYear} — ${scen.nome}</div>${simMobileNav}<div class="ay-grid" style="grid-template-columns:${simGridCols}">${gridHdr}${rows}</div></div>`;
   screen.innerHTML=tabsHtml+yrHtml+itemsHtml+cardsHtml+gridHtml;
 } // end _renderSimulador
 
