@@ -497,6 +497,9 @@ table.data tr:last-child td{border-bottom:none}
         <div id="cfg-parcelas"></div>
       </div>
       <button class="btn btn-primary btn-block" onclick="saveConfig()">💾 Salvar configurações</button>
+      <div style="margin-top:10px">
+        <button class="btn btn-outline btn-block" onclick="showExportConfig()">📲 Exportar para outro dispositivo</button>
+      </div>
       <div style="text-align:center;margin-top:10px"><span style="font-size:12px;color:var(--muted);cursor:pointer" onclick="showSetup()">Reconfigurar Client ID / Sheet ID</span></div>
     </div>
 
@@ -590,6 +593,18 @@ table.data tr:last-child td{border-bottom:none}
       <button class="btn btn-primary" style="flex:1" onclick="saveSimItem()">＋ Adicionar</button>
       <button class="btn btn-outline" onclick="closeSimItemModal()">Cancelar</button>
     </div>
+  </div>
+</div>
+
+<!-- EXPORT CONFIG MODAL -->
+<div id="export-modal" class="modal-overlay hidden" onclick="closeExportModal(event)">
+  <div class="modal" style="text-align:center">
+    <div class="modal-handle"></div>
+    <div class="modal-title" style="text-align:center">Exportar para outro dispositivo</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;text-align:left">Escaneie o QR code no novo celular. O app vai abrir com os IDs já preenchidos — é só salvar.</p>
+    <div id="export-qr" style="display:flex;justify-content:center;margin-bottom:14px"></div>
+    <div style="font-size:10px;color:var(--muted);word-break:break-all;padding:8px 10px;background:var(--bg);border-radius:8px;margin-bottom:16px;text-align:left" id="export-url-display"></div>
+    <button class="btn btn-outline btn-block" onclick="document.getElementById('export-modal').classList.add('hidden')">Fechar</button>
   </div>
 </div>
 
@@ -790,6 +805,12 @@ function avgByCat(){
 
 function daySpend(isoDate){return despesas().filter(r=>r.dataISO===isoDate).reduce((s,r)=>s+r.valor,0)}
 
+function lastUpdatedDate(){
+  const entries=allData.filter(r=>r.dataISO&&r.tipo!=='Receita'&&r.tipo!=='Fixo'&&r.tipo!=='Parcela');
+  if(!entries.length)return null;
+  return entries.reduce((best,r)=>r.dataISO>best?r.dataISO:best,'');
+}
+
 // Filtros diretos pelo tipo explícito da coluna H
 function fixosDoMes(ano,mes){return allData.filter(r=>r.tipo==='Fixo'&&r.ano===ano&&r.nMes===mes)}
 function fixosTotalDoMes(ano,mes){return fixosDoMes(ano,mes).reduce((s,r)=>s+r.valor,0)}
@@ -916,13 +937,18 @@ function renderDiarioMensal(){
   // % economizado = economia / entradas
   const pctEcon=inc>0?economiaPrev/inc:0;
 
+  const lastUp=lastUpdatedDate();
+  const lastUpStr=lastUp?(()=>{const[ly,lm,ld]=lastUp.split('-').map(Number);return`${ld} ${MSHORT[lm-1]} ${ly}`})():null;
+
   document.getElementById('diario-content').innerHTML=`
     <!-- Nav mês -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <button class="btn-icon" onclick="changeDiarioMonth(-1)">‹</button>
       <div style="font-size:17px;font-weight:700;color:var(--dark)">${MONTHS[diarioMonth-1]} ${diarioYear}</div>
       <button class="btn-icon" onclick="changeDiarioMonth(1)">›</button>
     </div>
+    ${lastUpStr?`<div style="text-align:center;font-size:11px;color:var(--muted);margin-bottom:12px">📌 Última atualização: <b style="color:var(--dark)">${lastUpStr}</b></div>`:''}
+
 
     <!-- Cards linha 1 -->
     <div class="sum-grid-3">
@@ -2333,7 +2359,28 @@ function saveSetup(){
   initAuth();showLogin()
 }
 
+function showExportConfig(){
+  const cfg=JSON.parse(localStorage.getItem('finCfg')||'{}');
+  if(!cfg.clientId||!cfg.spreadsheetId){toast('⚠ Configuração não encontrada');return}
+  const base=window.location.origin+window.location.pathname;
+  const url=`${base}?c=${encodeURIComponent(cfg.clientId)}&s=${encodeURIComponent(cfg.spreadsheetId)}`;
+  document.getElementById('export-url-display').textContent=url;
+  const qrSrc=`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}&bgcolor=FDFAF4&color=3D4F35&margin=10`;
+  document.getElementById('export-qr').innerHTML=`<img src="${qrSrc}" style="width:220px;height:220px;border-radius:10px;border:1px solid var(--border)" onerror="this.outerHTML='<div style=\\'font-size:12px;color:var(--muted);padding:20px\\'>QR indisponível — copie o link abaixo</div>'">`;
+  document.getElementById('export-modal').classList.remove('hidden');
+}
+function closeExportModal(e){if(e&&e.target===document.getElementById('export-modal'))document.getElementById('export-modal').classList.add('hidden')}
+
 window.addEventListener('load',async()=>{
+  // Verifica parâmetros de URL (exportação de config via QR)
+  const params=new URLSearchParams(window.location.search);
+  const urlC=params.get('c'),urlS=params.get('s');
+  if(urlC&&urlS){
+    history.replaceState({},'',window.location.pathname);
+    document.getElementById('s-clientid').value=decodeURIComponent(urlC);
+    document.getElementById('s-sheetid').value=decodeURIComponent(urlS);
+    showSetup();return
+  }
   const saved=localStorage.getItem('finCfg');
   if(!saved){showSetup();return}
   try{
