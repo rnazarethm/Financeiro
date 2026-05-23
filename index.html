@@ -300,16 +300,37 @@ table.data tr:last-child td{border-bottom:none}
   .content{padding:10px;padding-bottom:80px}
   .app-title{font-size:13px}
   .hdr-btn{padding:5px 8px;font-size:12px}
+
+  /* Heatmap anual */
   .ay-hm-grid{grid-template-columns:repeat(2,1fr)!important;gap:6px!important;padding:8px!important}
   .ay-hm-month{padding:6px 5px 4px}
+
+  /* Calendário mensal — células menores, texto compacto */
+  .cal-grid{gap:2px}
+  .cal-day{border-radius:5px}
+  .cal-num{font-size:11px}
+  .cal-val{font-size:8px;margin-top:1px}
+  .cal-dow{font-size:8px}
+
+  /* Modais — sobe mais, padding seguro pra notch */
+  .modal{max-height:88vh;padding:16px 16px max(env(safe-area-inset-bottom),16px)}
+  .modal-overlay{align-items:flex-end}
+
+  /* Dashboard — donut empilha verticalmente */
+  .donut-wrap{grid-template-columns:1fr!important;gap:10px!important}
+  .donut-chart-box{height:200px}
+
+  /* Outros */
   .fi-row{grid-template-columns:1fr 1fr}
   .sum-grid-3{grid-template-columns:repeat(3,1fr)}
   .toggle-btn{font-size:11px;padding:6px 4px}
   .dtab{padding:6px 10px;font-size:11px}
   .chart-box{height:180px}
-  .chart-box.tall{height:220px}
+  .chart-box.tall{height:200px}
   .sim-tabs-bar{gap:4px}
   .sim-tab,.sim-new-tab{padding:4px 10px;font-size:11px}
+  .tbl-wrap{font-size:11px}
+  table.data th,table.data td{padding:6px 5px}
 }
 </style>
 </head>
@@ -1617,9 +1638,9 @@ function renderDashboard(){
       </div>
       <div class="card">
         <div class="card-title">Distribuição por categoria <span style="font-size:10px;font-weight:400;color:var(--muted)">(clique para ver detalhes)</span></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:center">
-          <div style="height:200px;position:relative"><canvas id="ch-donut" style="cursor:pointer"></canvas></div>
-          <div>${sortedCats.map(([c,v])=>`<div onclick="openCatModal('${c}')" style="display:flex;align-items:center;gap:6px;margin-bottom:7px;font-size:12px;cursor:pointer;padding:3px 4px;border-radius:5px" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''"><div style="width:9px;height:9px;border-radius:50%;background:${catCol[c]};flex-shrink:0"></div><div style="flex:1">${c}</div><div style="font-weight:600">${Math.round(v/grandTotal*100)}%</div></div>`).join('')}</div>
+        <div class="donut-wrap" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:center">
+          <div class="donut-chart-box" style="height:200px;position:relative"><canvas id="ch-donut" style="cursor:pointer"></canvas></div>
+          <div style="overflow-y:auto;max-height:220px">${sortedCats.map(([c,v])=>`<div onclick="openCatModal('${c}')" style="display:flex;align-items:center;gap:6px;margin-bottom:7px;font-size:12px;cursor:pointer;padding:3px 4px;border-radius:5px" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''"><div style="width:9px;height:9px;border-radius:50%;background:${catCol[c]};flex-shrink:0"></div><div style="flex:1">${c}</div><div style="font-weight:600">${Math.round(v/grandTotal*100)}%</div></div>`).join('')}</div>
         </div>
       </div>
       <div class="card">
