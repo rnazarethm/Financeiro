@@ -14,20 +14,23 @@
 <script src="https://accounts.google.com/gsi/client"></script>
 <style>
 :root {
-  --dark:   #3D4F35;
-  --mid:    #5E7F44;
-  --cream:  #E8DFC0;
-  --orange: #E8821E;
-  --bg:     #EDE8D5;
-  --card:   #FDFAF4;
-  --text:   #2C2C2A;
-  --muted:  #7A7A6E;
-  --border: rgba(61,79,53,0.18);
-  --red:    #C0392B;
-  --nav:    58px;
+  --dark:      #2D5A3D;   /* action / active — ex: #3D4F35 */
+  --mid:       #3A7D44;   /* positive values — ex: #5E7F44 */
+  --action:    #2D5A3D;
+  --pos:       #3A7D44;
+  --cream:     #E8DFC0;
+  --orange:    #E8821E;
+  --bg:        #F5F3EF;   /* fundo geral mais claro */
+  --card:      #FFFFFF;   /* cards branco puro */
+  --text:      #1C1C1E;   /* iOS system label */
+  --muted:     #6C6C70;   /* iOS secondary label */
+  --border:    rgba(0,0,0,0.08);
+  --separator: rgba(0,0,0,0.08);
+  --red:       #D63031;
+  --nav:       58px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:15px}
 
 /* ── AUTH ─────────────────────────────────── */
 .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--bg)}
@@ -49,7 +52,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .add-inline{display:flex;gap:6px;margin-top:6px}
 
 /* ── BUTTONS ──────────────────────────────── */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;border:none;transition:all .15s}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:12px;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;border:none;transition:all .15s}
 .btn-primary{background:var(--dark);color:#fff}
 .btn-primary:hover{background:var(--mid)}
 .btn-block{width:100%}
@@ -58,18 +61,18 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .btn-sm{padding:6px 12px;font-size:12px}
 .btn-orange{background:var(--orange);color:#fff}
 .btn-orange:hover{opacity:.88}
-.btn-icon{background:var(--cream);border:none;color:var(--dark);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Inter',sans-serif}
+.btn-icon{background:var(--bg);border:none;color:var(--dark);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Inter',sans-serif}
 .btn-icon:hover{background:var(--border)}
 
 /* ── APP SHELL ────────────────────────────── */
 #app{display:none}
-.app-header{background:var(--dark);color:#fff;padding:0 16px;height:var(--nav);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
-.app-title{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.app-header{background:#FFFFFF;color:var(--text);padding:0 16px;height:var(--nav);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;border-bottom:1px solid var(--separator)}
+.app-title{font-size:17px;font-weight:700;letter-spacing:-.02em;color:var(--text)}
 .hdr-btns{display:flex;gap:8px}
-.hdr-btn{background:rgba(255,255,255,.15);border:none;color:#fff;padding:6px 11px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;font-family:'Inter',sans-serif}
-.hdr-btn:hover{background:rgba(255,255,255,.25)}
+.hdr-btn{background:var(--bg);border:none;color:var(--text);padding:6px 11px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;font-family:'Inter',sans-serif}
+.hdr-btn:hover{background:var(--separator)}
 
-.content{padding:14px;padding-bottom:80px;max-width:860px;margin:0 auto}
+.content{padding:16px;padding-bottom:80px;max-width:860px;margin:0 auto}
 .screen{display:none}
 .screen.active{display:block}
 
@@ -82,8 +85,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .nicon{font-size:16px}
 
 /* ── CARDS ────────────────────────────────── */
-.card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid var(--border)}
-.card-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+.card{background:var(--card);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.card-title{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:12px}
 .divider{height:1px;background:var(--border);margin:12px 0}
 
 /* ── TOGGLE TABS ──────────────────────────── */
@@ -134,7 +137,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .cal-val{font-size:11px;opacity:.85;margin-top:3px;font-weight:600}
 
 /* ── DAY MODAL ────────────────────────────── */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-end;justify-content:center}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:200;display:flex;align-items:flex-end;justify-content:center}
 .modal-overlay.hidden{display:none}
 .modal{background:var(--card);border-radius:16px 16px 0 0;width:100%;max-width:860px;padding:20px;max-height:75vh;overflow-y:auto}
 .modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px}
@@ -185,18 +188,18 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .ay-hm-stats{display:flex;justify-content:center;gap:5px;margin-top:4px;font-size:7px;font-weight:700;flex-wrap:wrap;line-height:1.4}
 
 /* ── DIÁRIO SUMMARY ───────────────────────── */
-.sum-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
+.sum-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:12px}
 .sum-item{background:var(--bg);border-radius:10px;padding:10px 12px}
 .sum-item.accent{background:var(--dark);color:#fff}
 .sum-item.accent .sum-label{opacity:.7}
 .sum-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:3px}
-.sum-val{font-size:16px;font-weight:700}
+.sum-val{font-size:18px;font-weight:700}
 .sum-val.pos{color:var(--mid)}
 .sum-val.neg{color:var(--red)}
 .sum-val.ora{color:var(--orange)}
 
 /* ── SECTION ROW ──────────────────────────── */
-.sec-hdr{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:10px 0 6px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.sec-hdr{font-size:12px;font-weight:600;color:var(--muted);padding:10px 0 6px;border-bottom:1px solid var(--separator);display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
 .drow{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(0,0,0,.04);font-size:13px}
 .drow:last-child{border-bottom:none}
 .drow-val{font-weight:600}
@@ -297,8 +300,8 @@ table.data tr:last-child td{border-bottom:none}
 
 /* ── MOBILE RESPONSIVE ───────────────────────────── */
 @media(max-width:700px){
-  .content{padding:10px;padding-bottom:80px}
-  .app-title{font-size:13px}
+  .content{padding:16px;padding-bottom:80px}
+  .app-title{font-size:15px}
   .hdr-btn{padding:5px 8px;font-size:12px}
 
   /* Heatmap anual */
@@ -307,7 +310,7 @@ table.data tr:last-child td{border-bottom:none}
 
   /* Calendário mensal — células menores, texto compacto */
   .cal-grid{gap:2px}
-  .cal-day{border-radius:5px}
+  .cal-day{aspect-ratio:unset;height:40px;border-radius:5px}
   .cal-num{font-size:11px}
   .cal-val{font-size:8px;margin-top:1px}
   .cal-dow{font-size:8px}
@@ -372,7 +375,7 @@ table.data tr:last-child td{border-bottom:none}
 <!-- APP -->
 <div id="app">
   <header class="app-header">
-    <div class="app-title">💰 Controle Financeiro</div>
+    <div class="app-title" id="app-title-text">Diário</div>
     <div class="hdr-btns">
       <button class="hdr-btn" onclick="refreshData()">↻ Sync</button>
       <button class="hdr-btn" onclick="navigate('config')">⚙</button>
@@ -2328,6 +2331,9 @@ function navigate(screen){
   document.querySelectorAll('.nitem').forEach(n=>n.classList.remove('active'));
   document.getElementById(`screen-${screen}`)?.classList.add('active');
   document.getElementById(`nav-${screen}`)?.classList.add('active');
+  const titles={diario:'Diário',lancar:'Lançar',dashboard:'Dashboard',lancamentos:'Lançamentos',simulador:'Simulador',config:'Configurações'};
+  const el=document.getElementById('app-title-text');
+  if(el)el.textContent=titles[screen]||'Finanças';
   activeScreen=screen;renderScreen(screen)
 }
 function renderScreen(s){
