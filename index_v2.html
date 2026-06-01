@@ -247,6 +247,40 @@ table.data tr:last-child td{border-bottom:none}
   .tbl-wrap{font-size:11px}
   table.data th,table.data td{padding:6px 5px}
 }
+
+/* ── BUDGET CARDS ─────────────────────────────────────── */
+.bud-card{background:var(--card);border-radius:14px;padding:16px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.bud-card-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.bud-cat-label{font-size:14px;font-weight:700;color:var(--text)}
+.bud-pct-badge{font-size:18px;font-weight:800;line-height:1}
+.bud-pct-badge.green{color:var(--mid)}.bud-pct-badge.yellow{color:#D4A017}.bud-pct-badge.orange{color:var(--orange)}.bud-pct-badge.red{color:var(--red)}
+.bud-bar{height:10px;background:var(--border);border-radius:5px;overflow:hidden;margin-bottom:8px}
+.bud-bar-inner{height:100%;border-radius:5px;transition:width .4s}
+.bud-bar-inner.green{background:var(--mid)}.bud-bar-inner.yellow{background:#D4A017}.bud-bar-inner.orange{background:var(--orange)}.bud-bar-inner.red{background:var(--red)}
+.bud-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);flex-wrap:wrap;gap:4px}
+.bud-global{background:var(--dark);color:#fff;border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.bud-global-item{text-align:center}
+.bud-global-label{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;opacity:.65;margin-bottom:2px}
+.bud-global-val{font-size:15px;font-weight:800}
+/* ── BANK CARDS ───────────────────────────────────────── */
+.bank-card{background:var(--card);border-radius:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.08);overflow:hidden}
+.bank-card-hdr{display:flex;justify-content:space-between;align-items:center;padding:13px 16px;cursor:pointer;user-select:none;transition:background .1s}
+.bank-card-hdr:hover{background:var(--bg)}
+.bank-name{font-size:14px;font-weight:700;color:var(--text)}
+.bank-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.bank-total{font-size:14px;font-weight:800;color:var(--mid)}
+.bank-chev{font-size:12px;color:var(--muted);margin-left:8px;transition:transform .2s}
+.bank-body{display:none;border-top:1px solid var(--border)}
+.bank-body.open{display:block}
+.bank-type-label{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;padding:7px 16px 3px;background:var(--bg)}
+.bank-acct{display:flex;justify-content:space-between;align-items:center;padding:9px 16px;border-bottom:1px solid var(--border);font-size:13px}
+.bank-acct:last-child{border-bottom:none}
+/* ── REEMBOLSO ────────────────────────────────────────── */
+.badge-reemb{background:rgba(232,130,30,.15);color:var(--orange)}
+/* ── DAILY EDIT ───────────────────────────────────────── */
+.daily-edit-input{width:65px;padding:3px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:700;text-align:center;color:var(--dark);font-family:'Inter',sans-serif;outline:none;background:var(--card)}
+.daily-edit-input:focus{border-color:var(--mid)}
+
 </style>
 </head>
 <body>
@@ -823,9 +857,10 @@ function renderDiarioMensal(){
   const ft=fixosDisp.reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
   const parcDB=parcelasDoMes(diarioYear,diarioMonth);
   const pt=parcDB.reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
+
+  // Calendar cells (only daySpend = Despesa & cat!==Fixo)
   let calCells='';
-  const DOW=['D','S','T','Q','Q','S','S'];
-  calCells+=DOW.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  ['D','S','T','Q','Q','S','S'].forEach(d=>{calCells+=`<div class="cal-dow">${d}</div>`;});
   for(let i=0;i<firstDOW;i++)calCells+=`<div class="cal-day empty"></div>`;
   let dailyReal=0,dailyFut=0;
   for(let d=1;d<=dias;d++){
@@ -835,15 +870,21 @@ function renderDiarioMensal(){
     let val=0,cls='future',hasData=false;
     if(isPast){val=daySpend(iso);dailyReal+=val;cls=isToday?'today':'past';hasData=val>0;}
     else{val=dailyLim;dailyFut+=val;}
-    const overLim=isPast&&val>dailyLim;
-    const colorStyle=isPast?(overLim?'border-color:rgba(192,57,43,.5);background:rgba(192,57,43,.08)':'border-color:rgba(58,125,68,.4);background:rgba(58,125,68,.08)'):'';
-    calCells+=`<div class="cal-day ${cls}${hasData?' has-data':''}" style="${colorStyle}" ${hasData?`onclick="openDayModal('${iso}','${d} de ${MONTHS[diarioMonth-1]}')"`:''}>
-      <div class="cal-num">${d}</div>${(isPast&&val>0)||!isPast?`<div class="cal-val" style="${!isPast?'opacity:.35':''}">${val>=1000?(val/1000).toFixed(1)+'k':Math.round(val)}</div>`:''}</div>`;
+    const overLim=isPast&&!isToday&&val>dailyLim;
+    const underLim=isPast&&!isToday&&val>0&&val<=dailyLim;
+    let extra='';
+    if(overLim)extra='border-color:rgba(192,57,43,.5);background:rgba(192,57,43,.08)';
+    else if(underLim)extra='border-color:rgba(58,125,68,.4);background:rgba(58,125,68,.08)';
+    calCells+=`<div class="cal-day ${cls}${hasData?' has-data':''}" style="${extra}" ${hasData?`onclick="openDayModal('${iso}','${d} de ${MONTHS[diarioMonth-1]}')"`:''}>
+      <div class="cal-num">${d}</div>${(isPast&&val>0)||!isPast?`<div class="cal-val" style="${!isPast?'opacity:.3':''}">${val>=1000?(val/1000).toFixed(1)+'k':Math.round(val)}</div>`:''}</div>`;
   }
+
   const totalDesp=ft+pt+dailyReal;
   const saldo=inc-totalDesp;
-  const catIcon={'Alimentação':'🍽','Consumo Pessoal':'🛍','Fixo':'📌','Lazer':'🎭','Saúde':'💊','Transporte':'🚌'};
-  function semColor(pct){if(pct>1)return'red';if(pct>.85)return'orange';if(pct>.6)return'yellow';return'green';}
+
+  // Budget cards using new CSS classes
+  const catIcon={'Alimentacao':'','Alimentação':'🍽','Consumo Pessoal':'🛍','Fixo':'📌','Lazer':'🎭','Saude':'','Saúde':'💊','Transporte':'🚌'};
+  function semCol(pct){return pct>1?'red':pct>.85?'orange':pct>.6?'yellow':'green';}
   const budCats=planned.filter(p=>p.cat!=='Receita'&&p.cat!=='Diário');
   let totalBud=0,totalGasto=0;
   const budCards=budCats.map(p=>{
@@ -853,25 +894,45 @@ function renderDiarioMensal(){
     const spent=Math.max(0,spentRaw-reemb);
     totalBud+=budget;totalGasto+=spent;
     const pct=budget>0?spent/budget:0;
-    const col=semColor(pct);
+    const col=semCol(pct);
     const remaining=budget-spent;
     const icon=catIcon[p.cat]||'💰';
     return`<div class="bud-card">
-      <div class="bud-card-header"><div class="bud-cat-name">${icon} ${p.cat}</div><div class="bud-pct ${col}">${Math.round(pct*100)}%</div></div>
-      <div class="bud-bar-thick"><div class="bud-bar-fill ${col}" style="width:${Math.min(pct*100,100)}%"></div></div>
-      <div class="bud-detail"><span>Gasto: <b>${fmt(spent)}</b></span><span>Orçado: <b>${fmt(budget)}</b></span><span style="color:${remaining>=0?'var(--mid)':'var(--red)'}">${remaining>=0?`Restante: ${fmt(remaining)}`:`Acima: ${fmt(-remaining)}`}</span></div>
+      <div class="bud-card-top">
+        <div class="bud-cat-label">${icon} ${p.cat}</div>
+        <div class="bud-pct-badge ${col}">${Math.round(pct*100)}%</div>
+      </div>
+      <div class="bud-bar"><div class="bud-bar-inner ${col}" style="width:${Math.min(pct*100,100)}%"></div></div>
+      <div class="bud-meta">
+        <span>Gasto: <b style="color:var(--text)">${fmt(spent)}</b></span>
+        <span>Orçado: <b style="color:var(--text)">${fmt(budget)}</b></span>
+        <span style="color:${remaining>=0?'var(--mid)':'var(--red)';font-weight:600}">${remaining>=0?'Restante: '+fmt(remaining):'Acima: '+fmt(-remaining)}</span>
+      </div>
     </div>`;
   }).join('');
-  const gPct=totalBud>0?totalGasto/totalBud:0;const gCol=semColor(gPct);
-  const budSection=budCats.length?`<div style="margin-bottom:4px">
-    <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-      <span>Orçamento do mês</span>
-      <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">Limite/dia: <input class="daily-edit-input" type="number" value="${dailyLim}" onchange="savePlannedDiario(parseFloat(this.value)||60)" title="Editar gasto diário padrão"></span>
-    </div>
-    <div class="bud-summary"><div><div class="bud-sum-label">Orçado</div><div class="bud-sum-val">${fmtK(totalBud)}</div></div><div><div class="bud-sum-label">Gasto</div><div class="bud-sum-val">${fmtK(totalGasto)}</div></div><div><div class="bud-sum-label">Utilizado</div><div class="bud-sum-val" style="color:${gCol==='red'?'#ff8c8c':gCol==='orange'?'#ffb347':gCol==='yellow'?'#ffd700':'#90ee90'}">${Math.round(gPct*100)}%</div></div></div>
-    ${budCards}</div>`:'';
+
+  const gPct=totalBud>0?totalGasto/totalBud:0;
+  const gCol=semCol(gPct);
+  const gColHex=gCol==='red'?'var(--red)':gCol==='orange'?'var(--orange)':gCol==='yellow'?'#D4A017':'#90EE90';
+  const budSection=budCats.length?`
+    <div style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:600;color:var(--muted)">Orçamento do mês</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">
+          Limite/dia: <input class="daily-edit-input" type="number" value="${dailyLim}" onchange="savePlannedDiario(parseFloat(this.value)||60)">
+        </div>
+      </div>
+      <div class="bud-global">
+        <div class="bud-global-item"><div class="bud-global-label">Orçado</div><div class="bud-global-val">${fmtK(totalBud)}</div></div>
+        <div class="bud-global-item"><div class="bud-global-label">Gasto</div><div class="bud-global-val">${fmtK(totalGasto)}</div></div>
+        <div class="bud-global-item"><div class="bud-global-label">Utilizado</div><div class="bud-global-val" style="color:${gColHex}">${Math.round(gPct*100)}%</div></div>
+      </div>
+      ${budCards}
+    </div>`:'';
+
   const lastUp=lastUpdatedDate();
   const lastUpStr=lastUp?(()=>{const[ly,lm,ld]=lastUp.split('-').map(Number);return`${ld} ${MSHORT[lm-1]} ${ly}`})():null;
+
   document.getElementById('diario-content').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <button class="btn-icon" onclick="changeDiarioMonth(-1)">‹</button>
@@ -884,7 +945,7 @@ function renderDiarioMensal(){
       <div class="sum-item"><div class="sum-label">Receitas</div><div class="sum-val pos">${fmtK(inc)}</div></div>
       <div class="sum-item ${saldo>=0?'accent':''}"><div class="sum-label">Saldo</div><div class="sum-val ${saldo<0?'neg':''}">${fmtK(saldo)}</div></div>
     </div>
-    <div class="sum-grid-3" style="margin-bottom:14px">
+    <div class="sum-grid-3" style="margin-bottom:16px">
       <div class="sum-item"><div class="sum-label">Fixos</div><div class="sum-val">${fmtK(ft)}${fixosEst?'<span style="color:var(--orange);font-size:10px"> est.</span>':''}</div></div>
       <div class="sum-item"><div class="sum-label">Parcelas</div><div class="sum-val">${fmtK(pt)}</div></div>
       <div class="sum-item"><div class="sum-label">Dia a dia</div><div class="sum-val ora">${fmtK(dailyReal)}</div></div>
@@ -892,7 +953,7 @@ function renderDiarioMensal(){
     ${budSection}
     <div class="card">
       <div class="sec-hdr"><span>Entradas</span><span style="color:var(--mid);font-weight:700">${fmt(inc)}</span></div>
-      ${receitasMes.length>0?receitasMes.map(r=>`<div class="drow"><span>${r.det}</span><span class="drow-val pos">${fmtV(Math.abs(r.valor),r.moeda,r.ano,r.nMes)}</span></div>`).join(''):`<div class="drow"><span>Salário + Benefícios (padrão)</span><span class="drow-val pos">${fmt(inc)}</span></div>`}
+      ${receitasMes.length>0?receitasMes.map(r=>`<div class="drow"><span>${r.det}</span><span class="drow-val pos">${fmtV(Math.abs(r.valor),r.moeda,r.ano,r.nMes)}</span></div>`).join(''):`<div class="drow"><span>Salário + benefícios (padrão)</span><span class="drow-val pos">${fmt(inc)}</span></div>`}
     </div>
     <div class="card">
       <div class="sec-hdr"><span>Gastos Fixos${fixosEst?'<span style="color:var(--orange);font-size:10px;margin-left:6px">estimativa</span>':''}</span><span>${fmt(ft)}</span></div>
@@ -909,9 +970,9 @@ function renderDiarioMensal(){
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Calendário</div>
-        <div style="font-size:11px;color:var(--muted)"><span style="color:var(--mid)">■</span> ≤${fmt(dailyLim)} &nbsp;<span style="color:var(--red)">■</span> acima</div>
+        <div style="font-size:11px;color:var(--muted)"><span style="color:var(--mid)">■</span> &le;${fmt(dailyLim)}&nbsp;&nbsp;<span style="color:var(--red)">■</span> acima</div>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:8px;padding:8px;background:var(--bg);border-radius:8px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:8px;padding:8px 10px;background:var(--bg);border-radius:8px">
         <span>Real: <b style="color:var(--text)">${fmt(dailyReal)}</b></span>
         <span>Previsto: <b>${fmt(dailyFut)}</b></span>
         <span>Total: <b style="color:var(--dark)">${fmt(dailyReal+dailyFut)}</b></span>
@@ -1324,22 +1385,48 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
     // === BANK CARDS SECTION ===
     const activeBancos=[...new Set(accounts.filter(a=>a.status==='Ativo'&&a.banco).map(a=>a.banco))].sort();
     const noBank=accounts.filter(a=>a.status==='Ativo'&&!a.banco);
+    const tipos=['Corrente','Cartao','Cartão','Vale','Investimento'];
     function bankCardHTML(banco,accts){
-      const total=accts.reduce((s,a)=>{const bal=a.saldoInicial;return s+toDisplay(bal,a.moeda,new Date().getFullYear(),new Date().getMonth()+1);},0);
-      const tipos=['Corrente','Cartão','Vale','Investimento'];
-      const byTipo=tipos.map(t=>{const list=accts.filter(a=>a.tipo===t);if(!list.length)return'';
-        const rows=list.map(a=>`<div class="bank-acct-row"><div><span style="font-weight:500">${a.nome}</span>${a.subtipo?`<span class="acct-badge" style="font-size:9px">${a.subtipo}</span>`:''}</div><span style="font-weight:700;color:${a.saldoInicial>=0?'var(--mid)':'var(--red)'}">${a.moeda==='EUR'?fmtEUR(a.saldoInicial):fmtBRL(a.saldoInicial)}</span></div>`).join('');
-        const subtot=list.reduce((s,a)=>s+a.saldoInicial,0);
-        return`<div class="bank-type-hdr">${t}</div>${rows}`;
-      }).join('');
-      const bankId='bank-'+banco.replace(/\s+/g,'_');
-      return`<div class="bank-card"><div class="bank-card-header" onclick="toggleBankCard('${bankId}')"><div><div class="bank-name">${banco}</div><div style="font-size:11px;color:var(--muted)">${accts.length} conta${accts.length!==1?'s':''}</div></div><div style="display:flex;align-items:center;gap:8px"><div class="bank-total">${fmt(total)}</div><span style="font-size:12px;color:var(--muted)">›</span></div></div><div class="bank-body" id="${bankId}">${byTipo}</div></div>`;
+      const now=new Date();
+      const total=accts.reduce((s,a)=>s+toDisplay(a.saldoInicial,a.moeda,now.getFullYear(),now.getMonth()+1),0);
+      const bankId='bk_'+banco.replace(/[^a-zA-Z0-9]/g,'_');
+      let body='';
+      ['Corrente','Cartão','Vale','Investimento'].forEach(t=>{
+        const list=accts.filter(a=>a.tipo===t||a.tipo===t.replace('ã','a'));
+        if(!list.length)return;
+        body+=`<div class="bank-type-label">${t}</div>`;
+        list.forEach(a=>{
+          const bal=a.saldoInicial;
+          const balFmt=a.moeda==='EUR'?fmtEUR(bal):fmtBRL(bal);
+          body+=`<div class="bank-acct">
+            <div>
+              <div style="font-weight:500">${a.nome}</div>
+              ${a.subtipo?`<div style="font-size:11px;color:var(--muted)">${a.subtipo}${a.objetivo?' · '+a.objetivo:''}</div>`:''}
+            </div>
+            <div style="font-weight:700;color:${bal>=0?'var(--mid)':'var(--red)'}">${balFmt}</div>
+          </div>`;
+        });
+      });
+      const totalFmt=fmt(total);
+      return`<div class="bank-card">
+        <div class="bank-card-hdr" onclick="const b=document.getElementById('${bankId}');b.classList.toggle('open');this.querySelector('.bank-chev').textContent=b.classList.contains('open')?'∨':'›'">
+          <div>
+            <div class="bank-name">${banco}</div>
+            <div class="bank-sub">${accts.length} conta${accts.length!==1?'s':''}</div>
+          </div>
+          <div style="display:flex;align-items:center">
+            <div class="bank-total">${totalFmt}</div>
+            <div class="bank-chev">›</div>
+          </div>
+        </div>
+        <div class="bank-body" id="${bankId}">${body}</div>
+      </div>`;
     }
     const bankCardsHTML=activeBancos.map(b=>bankCardHTML(b,accounts.filter(a=>a.status==='Ativo'&&a.banco===b))).join('')
       +(noBank.length?bankCardHTML('Outras',noBank):'');
-    // ========================
+    // =================================
     cont.innerHTML=`
-      <div style="margin-bottom:14px"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px">SALDO POR BANCO</div>${bankCardsHTML}</div>
+      <div style="margin-bottom:4px"><div class="card-title" style="margin-bottom:10px">Saldo por banco</div>${bankCardsHTML}</div>
       <div class="sum-grid" style="margin-bottom:12px">
         <div class="sum-item accent"><div class="sum-label">Patrimônio total</div><div class="sum-val">${fmtK(patrimTotal)}</div></div>
         <div class="sum-item"><div class="sum-label">Média mensal</div><div class="sum-val ${avgBal>=0?'pos':'neg'}">${fmtK(avgBal)}</div></div>
