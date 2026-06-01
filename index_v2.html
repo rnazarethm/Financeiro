@@ -906,7 +906,7 @@ function renderDiarioMensal(){
       <div class="bud-meta">
         <span>Gasto: <b style="color:var(--text)">${fmt(spent)}</b></span>
         <span>Orçado: <b style="color:var(--text)">${fmt(budget)}</b></span>
-        <span style="color:${remaining>=0?'var(--mid)':'var(--red)';font-weight:600}">${remaining>=0?'Restante: '+fmt(remaining):'Acima: '+fmt(-remaining)}</span>
+        <span style="color:${remaining>=0?'var(--mid)':'var(--red)'};font-weight:600">${remaining>=0?'Restante: '+fmt(remaining):'Acima: '+fmt(-remaining)}</span>
       </div>
     </div>`;
   }).join('');
