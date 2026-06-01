@@ -306,6 +306,7 @@ table.data tr:last-child td{border-bottom:none}
           <div class="tbtn" onclick="setLancarType('receita',this)">💰 Receita</div>
           <div class="tbtn" onclick="setLancarType('parcela',this)">💳 Parcela</div>
           <div class="tbtn" onclick="setLancarType('transferencia',this)">↔ Transferência</div>
+          <div class="tbtn" onclick="setLancarType('reembolso',this)">↩ Reembolso</div>
         </div>
       </div>
       <div class="card" id="lancar-form-card">
@@ -317,9 +318,8 @@ table.data tr:last-child td{border-bottom:none}
       <div class="filter-bar" id="dash-filter-bar"></div>
       <div class="dtabs">
         <div class="dtab active" onclick="setDashTab('geral',this)">Visão Geral</div>
-        <div class="dtab" onclick="setDashTab('orcamento',this)">Orçamento</div>
         <div class="dtab" onclick="setDashTab('superf',this)">Supérfluos</div>
-        <div class="dtab" onclick="setDashTab('balanco',this)">Balanço</div>
+        <div class="dtab" onclick="setDashTab('balanco',this)">Investimentos</div>
       </div>
       <div id="dash-content"></div>
     </div>
@@ -329,7 +329,7 @@ table.data tr:last-child td{border-bottom:none}
         <select class="filter-select" id="lt-ano" onchange="renderLancamentos()"><option value="">Todos os anos</option></select>
         <select class="filter-select" id="lt-mes" onchange="renderLancamentos()"><option value="">Todos os meses</option></select>
         <select class="filter-select" id="lt-cat" onchange="renderLancamentos()"><option value="">Todas as categorias</option></select>
-        <select class="filter-select" id="lt-tipo" onchange="renderLancamentos()"><option value="">Todos os tipos</option><option>Despesa</option><option>Receita</option><option>Parcela</option><option>Transferência</option></select>
+        <select class="filter-select" id="lt-tipo" onchange="renderLancamentos()"><option value="">Todos os tipos</option><option>Despesa</option><option>Receita</option><option>Parcela</option><option>Transferência</option><option>Reembolso</option></select>
         <select class="filter-select" id="lt-conta" onchange="renderLancamentos()"><option value="">Todas as contas</option></select>
         <input class="filter-search" id="lt-search" placeholder="🔍 Buscar..." oninput="renderLancamentos()">
       </div>
@@ -384,7 +384,7 @@ table.data tr:last-child td{border-bottom:none}
       <div class="fg"><label class="fl">Subcategoria</label><select class="fs" id="ed-subcat"></select></div>
     </div>
     <div class="fi-row">
-      <div class="fg"><label class="fl">Tipo</label><select class="fs" id="ed-tipo"><option>Despesa</option><option>Receita</option><option>Parcela</option><option>Transferência</option></select></div>
+      <div class="fg"><label class="fl">Tipo</label><select class="fs" id="ed-tipo"><option>Despesa</option><option>Receita</option><option>Parcela</option><option>Transferência</option><option>Reembolso</option></select></div>
       <div class="fg"><label class="fl">Conta</label><select class="fs" id="ed-conta"></select></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:14px">
@@ -594,7 +594,7 @@ async function loadAllData(){
 
 async function loadAccounts(){
   try{
-    const rows=await shGet('Accounts!A:F');
+    const rows=await shGet('Accounts!A:L');
     if(rows.length>1){
       accounts=rows.slice(1).map(r=>({
         id:r[0],nome:String(r[1]||'').trim(),
@@ -661,6 +661,17 @@ async function refreshData(){toast('Sincronizando...');await loadAllData();rende
 // In v2: despesas have valor < 0; receitas have valor > 0
 // tipo: 'Despesa' | 'Parcela' | 'Receita' | 'Transferência'
 function isDespesa(r){return r.tipo==='Despesa'||r.tipo==='Parcela';}
+function isReembolso(r){return r.tipo==='Reembolso';}
+function reembolsos(data){return(data||allData).filter(r=>isReembolso(r));}
+function reembolsosDoMes(ano,mes){return reembolsos().filter(r=>r.ano===ano&&r.nMes===mes).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,ano,mes)),0);}
+function totMesLiquido(ano,mes){return Math.max(0,totMesDisp(ano,mes)-reembolsosDoMes(ano,mes));}
+function plannedDiario(){const p=planned.find(x=>x.cat==='Diário');return p?Math.abs(toDisplay(p.valor,p.moeda,new Date().getFullYear(),new Date().getMonth()+1)):60;}
+async function savePlannedDiario(val){
+  const idx=planned.findIndex(p=>p.cat==='Diário');
+  if(idx>=0){planned[idx].valor=val;}else{planned.push({cat:'Diário',valor:val,moeda:'BRL'});}
+  await savePlanned();
+}
+
 function isReceita(r){return r.tipo==='Receita';}
 function isTransf(r){return r.tipo==='Transferência';}
 
@@ -696,7 +707,7 @@ function incomeForMonth(ano,mes){
 
 function daySpend(isoDate){
   const[y,m]=isoDate.split('-').map(Number);
-  return despesas().filter(r=>r.dataISO===isoDate)
+  return allData.filter(r=>r.tipo==='Despesa'&&r.cat!=='Fixo'&&r.dataISO===isoDate)
     .reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,y,m)),0);
 }
 
@@ -712,7 +723,7 @@ function monthsWithData(){
 
 function avgMonthly(){
   const ms=monthsWithData();if(!ms.length)return 0;
-  return ms.reduce((s,m)=>s+totMesDisp(m.ano,m.mes),0)/ms.length;
+  return ms.reduce((s,m)=>s+totMesLiquido(m.ano,m.mes),0)/ms.length;
 }
 
 function avgByCat(){
@@ -720,6 +731,8 @@ function avgByCat(){
   const validKeys=new Set(ms.map(m=>`${m.ano}-${m.mes}`));
   despesas().filter(r=>validKeys.has(`${r.ano}-${r.nMes}`))
     .forEach(r=>{tot[r.cat]=(tot[r.cat]||0)+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes));});
+  reembolsos().filter(r=>validKeys.has(`${r.ano}-${r.nMes}`))
+    .forEach(r=>{tot[r.cat]=(tot[r.cat]||0)-Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes));});
   const avg={};Object.keys(tot).forEach(c=>avg[c]=tot[c]/n);return avg;
 }
 
@@ -800,7 +813,7 @@ function renderDiarioMensal(){
   const today=new Date();const todayStr=todayISO();
   const dias=daysInMonth(diarioYear,diarioMonth);
   const firstDOW=new Date(diarioYear,diarioMonth-1,1).getDay();
-
+  const dailyLim=plannedDiario();
   const inc=incomeForMonth(diarioYear,diarioMonth);
   const receitasMes=byMesReceitas(diarioYear,diarioMonth);
   const fixosDB=fixosDoMes(diarioYear,diarioMonth);
@@ -810,48 +823,55 @@ function renderDiarioMensal(){
   const ft=fixosDisp.reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
   const parcDB=parcelasDoMes(diarioYear,diarioMonth);
   const pt=parcDB.reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
-
-  // Calendar
   let calCells='';
   const DOW=['D','S','T','Q','Q','S','S'];
   calCells+=DOW.map(d=>`<div class="cal-dow">${d}</div>`).join('');
   for(let i=0;i<firstDOW;i++)calCells+=`<div class="cal-day empty"></div>`;
-  let dailyReal=0;
-  const isCurMonth=(diarioYear===today.getFullYear()&&diarioMonth===today.getMonth()+1);
+  let dailyReal=0,dailyFut=0;
   for(let d=1;d<=dias;d++){
     const iso=`${diarioYear}-${String(diarioMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday=iso===todayStr;
     const isPast=new Date(diarioYear,diarioMonth-1,d)<=today;
     let val=0,cls='future',hasData=false;
     if(isPast){val=daySpend(iso);dailyReal+=val;cls=isToday?'today':'past';hasData=val>0;}
-    calCells+=`<div class="cal-day ${cls}${hasData?' has-data':''}" ${hasData?`onclick="openDayModal('${iso}','${d} de ${MONTHS[diarioMonth-1]}')"`:''}>
-      <div class="cal-num">${d}</div>${val>0?`<div class="cal-val">${val>=1000?(val/1000).toFixed(1)+'k':Math.round(val)}</div>`:''}</div>`;
+    else{val=dailyLim;dailyFut+=val;}
+    const overLim=isPast&&val>dailyLim;
+    const colorStyle=isPast?(overLim?'border-color:rgba(192,57,43,.5);background:rgba(192,57,43,.08)':'border-color:rgba(58,125,68,.4);background:rgba(58,125,68,.08)'):'';
+    calCells+=`<div class="cal-day ${cls}${hasData?' has-data':''}" style="${colorStyle}" ${hasData?`onclick="openDayModal('${iso}','${d} de ${MONTHS[diarioMonth-1]}')"`:''}>
+      <div class="cal-num">${d}</div>${(isPast&&val>0)||!isPast?`<div class="cal-val" style="${!isPast?'opacity:.35':''}">${val>=1000?(val/1000).toFixed(1)+'k':Math.round(val)}</div>`:''}</div>`;
   }
-
   const totalDesp=ft+pt+dailyReal;
   const saldo=inc-totalDesp;
-
-  // Budget progress for this month
-  const budgetRows=planned.map(p=>{
-    if(p.cat==='Receita')return'';
+  const catIcon={'Alimentação':'🍽','Consumo Pessoal':'🛍','Fixo':'📌','Lazer':'🎭','Saúde':'💊','Transporte':'🚌'};
+  function semColor(pct){if(pct>1)return'red';if(pct>.85)return'orange';if(pct>.6)return'yellow';return'green';}
+  const budCats=planned.filter(p=>p.cat!=='Receita'&&p.cat!=='Diário');
+  let totalBud=0,totalGasto=0;
+  const budCards=budCats.map(p=>{
     const budget=Math.abs(toDisplay(p.valor,p.moeda,diarioYear,diarioMonth));
-    const spent=despesas().filter(r=>r.cat===p.cat&&r.ano===diarioYear&&r.nMes===diarioMonth)
-      .reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
+    const spentRaw=despesas().filter(r=>r.cat===p.cat&&r.ano===diarioYear&&r.nMes===diarioMonth).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
+    const reemb=reembolsos().filter(r=>r.cat===p.cat&&r.ano===diarioYear&&r.nMes===diarioMonth).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
+    const spent=Math.max(0,spentRaw-reemb);
+    totalBud+=budget;totalGasto+=spent;
     const pct=budget>0?spent/budget:0;
-    const cls=pct>1?'over':pct>.85?'warn':'';
+    const col=semColor(pct);
     const remaining=budget-spent;
-    return`<div class="bud-row">
-      <div class="bud-header">
-        <span class="bud-cat">${p.cat}</span>
-        <span class="bud-vals">${fmt(spent)} / ${fmt(budget)} ${remaining>=0?`<span style="color:var(--mid)">(${fmt(remaining)} restante)</span>`:`<span style="color:var(--red)">(${fmt(-remaining)} acima)</span>`}</span>
-      </div>
-      <div class="prog-bar"><div class="prog-fill ${cls}" style="width:${Math.min(pct*100,100)}%"></div></div>
+    const icon=catIcon[p.cat]||'💰';
+    return`<div class="bud-card">
+      <div class="bud-card-header"><div class="bud-cat-name">${icon} ${p.cat}</div><div class="bud-pct ${col}">${Math.round(pct*100)}%</div></div>
+      <div class="bud-bar-thick"><div class="bud-bar-fill ${col}" style="width:${Math.min(pct*100,100)}%"></div></div>
+      <div class="bud-detail"><span>Gasto: <b>${fmt(spent)}</b></span><span>Orçado: <b>${fmt(budget)}</b></span><span style="color:${remaining>=0?'var(--mid)':'var(--red)'}">${remaining>=0?`Restante: ${fmt(remaining)}`:`Acima: ${fmt(-remaining)}`}</span></div>
     </div>`;
   }).join('');
-
+  const gPct=totalBud>0?totalGasto/totalBud:0;const gCol=semColor(gPct);
+  const budSection=budCats.length?`<div style="margin-bottom:4px">
+    <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+      <span>Orçamento do mês</span>
+      <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">Limite/dia: <input class="daily-edit-input" type="number" value="${dailyLim}" onchange="savePlannedDiario(parseFloat(this.value)||60)" title="Editar gasto diário padrão"></span>
+    </div>
+    <div class="bud-summary"><div><div class="bud-sum-label">Orçado</div><div class="bud-sum-val">${fmtK(totalBud)}</div></div><div><div class="bud-sum-label">Gasto</div><div class="bud-sum-val">${fmtK(totalGasto)}</div></div><div><div class="bud-sum-label">Utilizado</div><div class="bud-sum-val" style="color:${gCol==='red'?'#ff8c8c':gCol==='orange'?'#ffb347':gCol==='yellow'?'#ffd700':'#90ee90'}">${Math.round(gPct*100)}%</div></div></div>
+    ${budCards}</div>`:'';
   const lastUp=lastUpdatedDate();
   const lastUpStr=lastUp?(()=>{const[ly,lm,ld]=lastUp.split('-').map(Number);return`${ld} ${MSHORT[lm-1]} ${ly}`})():null;
-
   document.getElementById('diario-content').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <button class="btn-icon" onclick="changeDiarioMonth(-1)">‹</button>
@@ -860,7 +880,7 @@ function renderDiarioMensal(){
     </div>
     ${lastUpStr?`<div style="text-align:center;font-size:11px;color:var(--muted);margin-bottom:12px">📌 Última atualização: <b style="color:var(--dark)">${lastUpStr}</b></div>`:''}
     <div class="sum-grid-3">
-      <div class="sum-item"><div class="sum-label">Despesas</div><div class="sum-val neg">${fmtK(totalDesp)}</div></div>
+      <div class="sum-item"><div class="sum-label">Total saídas</div><div class="sum-val">${fmtK(totalDesp)}</div></div>
       <div class="sum-item"><div class="sum-label">Receitas</div><div class="sum-val pos">${fmtK(inc)}</div></div>
       <div class="sum-item ${saldo>=0?'accent':''}"><div class="sum-label">Saldo</div><div class="sum-val ${saldo<0?'neg':''}">${fmtK(saldo)}</div></div>
     </div>
@@ -869,7 +889,7 @@ function renderDiarioMensal(){
       <div class="sum-item"><div class="sum-label">Parcelas</div><div class="sum-val">${fmtK(pt)}</div></div>
       <div class="sum-item"><div class="sum-label">Dia a dia</div><div class="sum-val ora">${fmtK(dailyReal)}</div></div>
     </div>
-    ${planned.length?`<div class="card"><div class="card-title">Orçamento do mês</div>${budgetRows}</div>`:''}
+    ${budSection}
     <div class="card">
       <div class="sec-hdr"><span>Entradas</span><span style="color:var(--mid);font-weight:700">${fmt(inc)}</span></div>
       ${receitasMes.length>0?receitasMes.map(r=>`<div class="drow"><span>${r.det}</span><span class="drow-val pos">${fmtV(Math.abs(r.valor),r.moeda,r.ano,r.nMes)}</span></div>`).join(''):`<div class="drow"><span>Salário + Benefícios (padrão)</span><span class="drow-val pos">${fmt(inc)}</span></div>`}
@@ -882,16 +902,22 @@ function renderDiarioMensal(){
       <div class="sec-hdr"><span>Parcelas Ativas</span><span>${fmt(pt)}</span></div>
       ${parcDB.length?parcDB.map(p=>{
         const todas=allData.filter(r=>r.tipo==='Parcela'&&r.det===p.det).sort((a,b)=>a.ano*12+a.nMes-(b.ano*12+b.nMes));
-        const total=todas.length;const idx=todas.findIndex(r=>r.ano===diarioYear&&r.nMes===diarioMonth);
-        const cur=idx>=0?idx+1:'?';
+        const total=todas.length;const idx=todas.findIndex(r=>r.ano===diarioYear&&r.nMes===diarioMonth);const cur=idx>=0?idx+1:'?';
         return`<div class="drow"><div><span style="font-weight:500">${p.det}</span><span style="color:var(--muted);font-size:11px;margin-left:6px">${cur}/${total}</span></div><span class="drow-val">${fmtV(Math.abs(p.valor),p.moeda,p.ano,p.nMes)}</span></div>`;
       }).join(''):'<div style="color:var(--muted);font-size:13px;padding:8px 0">Nenhuma parcela ativa</div>'}
     </div>
     <div class="card">
-      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Calendário</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Calendário</div>
+        <div style="font-size:11px;color:var(--muted)"><span style="color:var(--mid)">■</span> ≤${fmt(dailyLim)} &nbsp;<span style="color:var(--red)">■</span> acima</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:8px;padding:8px;background:var(--bg);border-radius:8px">
+        <span>Real: <b style="color:var(--text)">${fmt(dailyReal)}</b></span>
+        <span>Previsto: <b>${fmt(dailyFut)}</b></span>
+        <span>Total: <b style="color:var(--dark)">${fmt(dailyReal+dailyFut)}</b></span>
+      </div>
       <div class="cal-grid">${calCells}</div>
-    </div>
-  `;
+    </div>`;
 }
 
 function changeDiarioMonth(delta){
@@ -916,6 +942,7 @@ function openDayModal(iso,label){
 function closeDayModal(e){if(e.target===document.getElementById('day-modal'))document.getElementById('day-modal').classList.add('hidden');}
 function renderDiarioAnual(){
   const year=diarioYear;const today=new Date();
+  const dailyLim=plannedDiario();
   const curM=today.getMonth()+1,curY=today.getFullYear();
   const todayStr=todayISO();
   const isCurM=m=>year===curY&&m===curM;
@@ -957,7 +984,21 @@ function renderDiarioAnual(){
     for(const m of mList){const row=todas.find(r=>r.ano===year&&r.nMes===m);if(row){const idx=todas.findIndex(r=>r.ano===year&&r.nMes===m);const num=idx>=0?idx+1:'?';parcGridInner+=`<div class="ay-cell" style="background:${bg};flex-direction:column;gap:1px"><span class="ay-gantt-num" style="color:${fg}">${num}/${total}</span><span style="font-size:7px;font-weight:600;color:${fg};opacity:.75;position:relative;z-index:1">${fmtK(Math.abs(toDisplay(row.valor,row.moeda,year,m)))}</span></div>`;}else{parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}"><span class="ay-dash" style="opacity:.15">·</span></div>`;}}
   });
   if(parcNomes.length){parcGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(232,223,192,.45)">Total Parc.</div>`;for(const m of mList){const tot=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,year,m)),0);parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="background:rgba(232,223,192,.45)">${tot>0?`<span class="ay-v" style="font-weight:800">${fmtK(tot)}</span>`:`<span class="ay-dash">—</span>`}</div>`;}}
-  // Heatmap
+
+  // % Comprometido com Fixos + Parcelas
+  if(fixoNomes.length||parcNomes.length){
+    parcGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(61,79,53,.09)">% Comprom.</div>`;
+    for(const m of mList){
+      const inc2=incomeForMonth(year,m);
+      const fixTot2=estimaFixosMes(m);
+      const parcTot2=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,year,m)),0);
+      const pct2=inc2>0?Math.round((fixTot2+parcTot2)/inc2*100):0;
+      const hasV=(fixTot2+parcTot2)>0&&inc2>0;
+      const col2=pct2>75?'var(--red)':pct2>50?'var(--orange)':'var(--dark)';
+      parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''} " style="background:rgba(61,79,53,.09)">${hasV?`<span class="ay-v" style="color:${col2};font-weight:800">${pct2}%</span>`:'<span class="ay-dash">-</span>'}</div>`;
+    }
+  }
+    // Heatmap
   let hmHTML='<div class="ay-hm-grid">';
   for(let m=1;m<=12;m++){
     const dias=daysInMonth(year,m);const firstDOW=new Date(year,m-1,1).getDay();
@@ -969,12 +1010,13 @@ function renderDiarioAnual(){
       const iso=`${year}-${mm}-${dd_}`;const isToday_=iso===todayStr;
       const isPastDay=new Date(year,m-1,d)<=today;
       if(isPastDay){totalPast++;const val=daySpend(iso);let cls='ay-hm-c ';
-        if(isToday_)cls+='ay-hm-today';else if(val>150){cls+='ay-hm-over';nOver++;}else if(val>0){cls+='ay-hm-ok';nOk++;}else{cls+='ay-hm-none';nNone++;}
+        if(isToday_)cls+='ay-hm-today';else if(val>dailyLim){cls+='ay-hm-over';nOver++;}else if(val>0){cls+='ay-hm-ok';nOk++;}else{cls+='ay-hm-none';nNone++;}
         const hasSpend=val>0;const numCls=(!isToday_&&!hasSpend)?'dark':'';
         dc+=`<div class="${cls}"${hasSpend?` onclick="openDayModal('${iso}','${d} de ${MONTHS[m-1]}')" style="cursor:pointer"`:''} title="${d}/${m}"><span class="ay-hm-num ${numCls}">${d}</span></div>`;
       }else{dc+=`<div class="ay-hm-c ay-hm-fut"><span class="ay-hm-num dark">${d}</span></div>`;}
     }
-    hmHTML+=`<div class="ay-hm-month${isCurM(m)?' ay-hm-curm':''}"><div class="ay-hm-name">${MSHORT[m-1]}</div><div class="ay-hm-days">${dc}</div></div>`;
+    const diarTot=diarioDoMes(year,m).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,year,m)),0);
+    hmHTML+=`<div class="ay-hm-month${isCurM(m)?' ay-hm-curm':''}"><div class="ay-hm-name">${MSHORT[m-1]}</div>${diarTot>0?`<div style="font-size:7px;font-weight:700;text-align:center;color:${diarTot>dailyLim*daysInMonth(year,m)?'var(--red)':'var(--mid)'};margin-bottom:2px">${fmtK(diarTot)}</div>`:''}<div class="ay-hm-days">${dc}</div></div>`;
   }
   hmHTML+=`</div><div class="ay-hm-leg"><span><span class="ay-hm-dot ay-hm-ok"></span>ok</span><span><span class="ay-hm-dot ay-hm-over"></span>alto</span><span><span class="ay-hm-dot ay-hm-none"></span>sem gasto</span></div>`;
   let runEcon=0;const econAcum={};
@@ -1105,6 +1147,14 @@ async function lancarGasto(){
   const moeda=getMoedaConta(conta);
   const[ano,mes]=data.split('-').map(Number);
   const dataBR=isoToBR(data);
+  if(lancarType==='reembolso'){
+    const cat2=document.getElementById('l-cat')?.value||'';
+    const sub2=document.getElementById('l-subcat')?.value||'';
+    await shAppend('Cashflow!A:H',[[valor,moeda,dataBR,desc,conta,'Reembolso',cat2,sub2]]);
+    toast('✓ Reembolso registrado!');
+    document.getElementById('l-valor').value='';document.getElementById('l-desc').value='';
+    await loadAllData();return;
+  }
   if(lancarType==='receita'){
     await shAppend('Cashflow!A:H',[[valor,moeda,dataBR,desc,conta,'Receita','Receita','']]);
     toast('✓ Receita registrada!');
@@ -1219,45 +1269,30 @@ function renderDashboard(){
         </table></div>
       </div>`;
     destroyChart('mensal');destroyChart('donut');
-    charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data:{labels:mLabels,datasets:[{label:'Gasto',data:mVals,backgroundColor:'#5E7F44',borderRadius:4},{label:'Média',data:avgLine,type:'line',borderColor:'#E8821E',borderDash:[5,3],borderWidth:2,pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{family:'Inter',size:11}}}},scales:{y:{ticks:{callback:v=>`${displayCurrency==='EUR'?'€':'R$'}${(v/1000).toFixed(1)}k`,font:{family:'Inter',size:10}}}},onClick:(_,els)=>{if(!els.length)return;openMonthModal(mKeys[els[0].index],mLabels[els[0].index]);}}});
+    // Register datalabels inline
+const datalabelPlugin={id:'datalabels',afterDatasetsDraw(chart){
+  const ctx=chart.ctx;
+  chart.data.datasets.forEach((ds,di)=>{
+    const meta=chart.getDatasetMeta(di);
+    if(meta.hidden)return;
+    meta.data.forEach((el,i)=>{
+      const val=ds.data[i];if(!val)return;
+      ctx.save();
+      ctx.font='bold 10px Inter,sans-serif';
+      ctx.fillStyle=di===0?'#fff':'#E8821E';
+      ctx.textAlign='center';
+      ctx.textBaseline=di===0?'bottom':'top';
+      const pos=el.getCenterPoint();
+      const yOff=di===0?-4:4;
+      const label=Math.abs(val)>=1000?(val/1000).toFixed(1)+'k':Math.round(val).toString();
+      if(di===0&&el.height>18)ctx.fillText(label,pos.x,pos.y+yOff);
+      else if(di===1)ctx.fillText(label,pos.x,pos.y+yOff);
+      ctx.restore();
+    });
+  });
+}};
+charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data:{labels:mLabels,datasets:[{label:'Gasto',data:mVals,backgroundColor:'#5E7F44',borderRadius:4},{label:'Média',data:avgLine,type:'line',borderColor:'#E8821E',borderDash:[5,3],borderWidth:2,pointRadius:0,fill:false}]},plugins:[datalabelPlugin],options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{family:'Inter',size:11}}}},scales:{y:{ticks:{callback:v=>`${displayCurrency==='EUR'?'€':'R$'}${(v/1000).toFixed(1)}k`,font:{family:'Inter',size:10}}}},onClick:(_,els)=>{if(!els.length)return;openMonthModal(mKeys[els[0].index],mLabels[els[0].index]);}}});
     charts['donut']=new Chart(document.getElementById('ch-donut'),{type:'doughnut',data:{labels:sortedCats.map(([c])=>c),datasets:[{data:sortedCats.map(([,v])=>v),backgroundColor:sortedCats.map(([c])=>catCol[c]),borderWidth:2,borderColor:'#FDFAF4'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'65%',onClick:(_,els)=>{if(!els.length)return;openCatModal(sortedCats[els[0].index][0]);}}});
-
-  }else if(dashTab==='orcamento'){
-    const now=new Date();const y=now.getFullYear(),m=now.getMonth()+1;
-    const pct=now.getDate()/daysInMonth(y,m);
-    if(!planned.length){cont.innerHTML=`<div class="card"><div class="empty"><div class="empty-icon">📋</div>Nenhum orçamento configurado. Acesse Configurações para definir.</div></div>`;return;}
-    let totalBud=0,totalGasto=0;
-    const rows=planned.filter(p=>p.cat!=='Receita').map(p=>{
-      const budget=Math.abs(toDisplay(p.valor,p.moeda,y,m));
-      const spent=despesas().filter(r=>r.cat===p.cat&&r.ano===y&&r.nMes===m).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,y,m)),0);
-      const proj=pct>0?spent/pct:spent;
-      const remaining=budget-spent;
-      const ratio=budget>0?spent/budget:0;
-      const cls=ratio>1?'over':ratio>.85?'warn':'';
-      totalBud+=budget;totalGasto+=spent;
-      return`<div class="bud-row" style="margin-bottom:16px">
-        <div class="bud-header"><span class="bud-cat">${p.cat}</span>
-          <span class="bud-vals">${fmt(spent)} / ${fmt(budget)} · <span style="color:${remaining>=0?'var(--mid)':'var(--red)'}">${remaining>=0?`${fmt(remaining)} restante`:`${fmt(-remaining)} acima`}</span></span>
-        </div>
-        <div class="prog-bar"><div class="prog-fill ${cls}" style="width:${Math.min(ratio*100,100)}%"></div></div>
-        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:3px">
-          <span>Projeção: <b style="color:${proj>budget?'var(--red)':'var(--text)'}">${fmt(proj)}</b></span>
-          <span>${Math.round(ratio*100)}% usado · ${Math.round(pct*100)}% do mês</span>
-        </div>
-      </div>`;
-    }).join('');
-    const recPlan=planned.find(p=>p.cat==='Receita');
-    const recPlanVal=recPlan?Math.abs(toDisplay(recPlan.valor,recPlan.moeda,y,m)):0;
-    const incReal=incomeForMonth(y,m);
-    const saldoBud=recPlanVal-totalBud;
-    cont.innerHTML=`
-      <div class="sum-grid-3" style="margin-bottom:14px">
-        <div class="sum-item"><div class="sum-label">Orçamento total</div><div class="sum-val">${fmtK(totalBud)}</div></div>
-        <div class="sum-item"><div class="sum-label">Gasto real</div><div class="sum-val ${totalGasto>totalBud?'neg':''}">${fmtK(totalGasto)}</div></div>
-        <div class="sum-item ${totalBud>totalGasto?'accent':''}"><div class="sum-label">Disponível</div><div class="sum-val ${totalBud-totalGasto<0?'neg':''}">${fmtK(totalBud-totalGasto)}</div></div>
-      </div>
-      <div class="card">${rows}</div>
-      ${recPlanVal?`<div class="card"><div class="card-title">Receita esperada vs real</div><div class="drow"><span>Receita planejada</span><span class="drow-val pos">${fmt(recPlanVal)}</span></div><div class="drow"><span>Receita real</span><span class="drow-val pos">${fmt(incReal)}</span></div><div class="drow"><span>Margem planejada (receita − despesas)</span><span class="drow-val ${saldoBud>=0?'pos':'neg'}">${fmt(saldoBud)}</span></div></div>`:''}`;
 
   }else if(dashTab==='superf'){
     const ms=monthsWithData();
@@ -1285,7 +1320,26 @@ function renderDashboard(){
     const balAnos=[...new Set(ms.map(m=>m.ano))].sort();
     // Accounts summary
     const acctRows=accounts.filter(a=>a.status==='Ativo').map(a=>{const bal=getAccountBalance(a.nome);const balDisp=toDisplay(bal,a.moeda,new Date().getFullYear(),new Date().getMonth()+1);return`<div class="acct-row"><div><span style="font-weight:500">${a.nome}</span><span class="acct-badge">${a.tipo}</span><span class="acct-badge" style="background:${a.moeda==='EUR'?'rgba(61,79,53,.15)':'rgba(232,130,30,.15)'};color:${a.moeda==='EUR'?'var(--dark)':'var(--orange)'}">${a.moeda}</span></div><span style="font-weight:700;color:${balDisp>=0?'var(--mid)':'var(--red)'}">${fmtV(bal,a.moeda,new Date().getFullYear(),new Date().getMonth()+1)}</span></div>`;}).join('');
+
+    // === BANK CARDS SECTION ===
+    const activeBancos=[...new Set(accounts.filter(a=>a.status==='Ativo'&&a.banco).map(a=>a.banco))].sort();
+    const noBank=accounts.filter(a=>a.status==='Ativo'&&!a.banco);
+    function bankCardHTML(banco,accts){
+      const total=accts.reduce((s,a)=>{const bal=a.saldoInicial;return s+toDisplay(bal,a.moeda,new Date().getFullYear(),new Date().getMonth()+1);},0);
+      const tipos=['Corrente','Cartão','Vale','Investimento'];
+      const byTipo=tipos.map(t=>{const list=accts.filter(a=>a.tipo===t);if(!list.length)return'';
+        const rows=list.map(a=>`<div class="bank-acct-row"><div><span style="font-weight:500">${a.nome}</span>${a.subtipo?`<span class="acct-badge" style="font-size:9px">${a.subtipo}</span>`:''}</div><span style="font-weight:700;color:${a.saldoInicial>=0?'var(--mid)':'var(--red)'}">${a.moeda==='EUR'?fmtEUR(a.saldoInicial):fmtBRL(a.saldoInicial)}</span></div>`).join('');
+        const subtot=list.reduce((s,a)=>s+a.saldoInicial,0);
+        return`<div class="bank-type-hdr">${t}</div>${rows}`;
+      }).join('');
+      const bankId='bank-'+banco.replace(/\s+/g,'_');
+      return`<div class="bank-card"><div class="bank-card-header" onclick="toggleBankCard('${bankId}')"><div><div class="bank-name">${banco}</div><div style="font-size:11px;color:var(--muted)">${accts.length} conta${accts.length!==1?'s':''}</div></div><div style="display:flex;align-items:center;gap:8px"><div class="bank-total">${fmt(total)}</div><span style="font-size:12px;color:var(--muted)">›</span></div></div><div class="bank-body" id="${bankId}">${byTipo}</div></div>`;
+    }
+    const bankCardsHTML=activeBancos.map(b=>bankCardHTML(b,accounts.filter(a=>a.status==='Ativo'&&a.banco===b))).join('')
+      +(noBank.length?bankCardHTML('Outras',noBank):'');
+    // ========================
     cont.innerHTML=`
+      <div style="margin-bottom:14px"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px">SALDO POR BANCO</div>${bankCardsHTML}</div>
       <div class="sum-grid" style="margin-bottom:12px">
         <div class="sum-item accent"><div class="sum-label">Patrimônio total</div><div class="sum-val">${fmtK(patrimTotal)}</div></div>
         <div class="sum-item"><div class="sum-label">Média mensal</div><div class="sum-val ${avgBal>=0?'pos':'neg'}">${fmtK(avgBal)}</div></div>
@@ -1310,6 +1364,14 @@ function renderDashboard(){
   }
 }
 
+
+function toggleBankCard(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.classList.toggle('open');
+  const hdr=el.previousElementSibling;
+  if(hdr){const arr=hdr.querySelector('span:last-child');if(arr)arr.textContent=el.classList.contains('open')?'∨':'›';}
+}
 function openDashModal(title,items){
   const total=items.filter(r=>isDespesa(r)).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
   items=[...items].sort((a,b)=>Math.abs(b.valor)-Math.abs(a.valor));
@@ -1363,7 +1425,7 @@ function renderLancamentos(){
   const totalRec=data.filter(r=>isReceita(r)).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
   document.getElementById('lt-summary').innerHTML=`<div style="display:flex;gap:10px;font-size:12px;flex-wrap:wrap;align-items:center"><div class="tag">${data.length} lançamentos</div><div class="tag" style="color:var(--red)">Despesas: ${fmt(totalDesp)}</div>${totalRec>0?`<div class="tag" style="color:var(--mid)">Receitas: ${fmt(totalRec)}</div>`:''}<div style="font-size:11px;color:var(--muted);margin-left:auto">Clique para editar</div></div>`;
   const thSort=(col,label)=>`<th onclick="sortLt('${col}')" style="text-align:${col==='valor'?'right':'left'}">${label} ${ltSort.col===col?(ltSort.dir===1?'↑':'↓'):''}</th>`;
-  const tipoBadge=t=>t==='Receita'?'badge-g':t==='Parcela'?'badge-o':t==='Transferência'?'badge-b':'badge-r';
+  const tipoBadge=t=>t==='Receita'?'badge-g':t==='Parcela'?'badge-o':t==='Transferência'?'badge-b':t==='Reembolso'?'badge-reemb':'badge-r';
   document.getElementById('lt-table').innerHTML=`
     <thead><tr>${thSort('data','Data')}${thSort('cat','Categoria')}<th>Descrição</th><th>Tipo</th><th>Conta</th><th>Moeda</th>${thSort('valor','Valor')}</tr></thead>
     <tbody>${data.slice(0,200).map(r=>`<tr onclick="editLancamento(${r._row})" style="cursor:pointer">
@@ -1373,7 +1435,7 @@ function renderLancamentos(){
       <td><span class="badge ${tipoBadge(r.tipo)}">${r.tipo}</span></td>
       <td class="td-muted">${r.conta||'—'}</td>
       <td class="td-muted">${r.moeda}</td>
-      <td class="td-r" style="color:${isReceita(r)?'var(--mid)':isTransf(r)?'var(--muted)':'var(--red)'}">${isReceita(r)||r.valor>0?'+':'−'}${fmtV(Math.abs(r.valor),r.moeda,r.ano,r.nMes)}</td>
+      <td class="td-r" style="color:${isReceita(r)?'var(--mid)':isReembolso(r)?'var(--orange)':isTransf(r)?'var(--muted)':'var(--red)'}">${isReceita(r)?'+':isReembolso(r)?'↩':'−'}${fmtV(Math.abs(r.valor),r.moeda,r.ano,r.nMes)}</td>
     </tr>`).join('')}${data.length>200?`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:12px">Mostrando 200 de ${data.length}. Refine os filtros.</td></tr>`:''}</tbody>`;
 }
 function sortLt(col){ltSort={col,dir:ltSort.col===col?-ltSort.dir:1};renderLancamentos();}
