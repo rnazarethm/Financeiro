@@ -630,16 +630,36 @@ async function loadAllData(){
 async function loadAccounts(){
   try{
     const rows=await shGet('Accounts!A:L');
-    if(rows.length>1){
-      accounts=rows.slice(1).map(r=>({
-        id:r[0],nome:String(r[1]||'').trim(),
-        saldoInicial:parseSheetNum(r[2]),
-        tipo:String(r[3]||'Banco').trim(),
-        moeda:String(r[4]||'BRL').trim(),
-        status:String(r[5]||'Ativo').trim()
-      })).filter(a=>a.nome);
-    }else{accounts=[];}
-  }catch(e){accounts=[];}
+    if(rows.length<2){accounts=[];return;}
+    // Use header row to map columns dynamically
+    const hdr=rows[0].map(h=>String(h||'').toLowerCase().trim().replace(/[^a-z0-9]/g,''));
+    function col(...names){for(const n of names){const i=hdr.indexOf(n);if(i>=0)return i;}return-1;}
+    const iNome =col('name','nome');
+    const iSaldo=col('saldoinicial','saldo');
+    const iTipo =col('type','tipo');
+    const iMoeda=col('currency','moeda');
+    const iStat =col('status');
+    const iBanco=col('banco','bank');
+    const iTemp =col('temporalidade');
+    const iRfRv =col('rfxrv','rfrv','rfxrv');
+    const iSub  =col('subtipo');
+    const iBrExt=col('brxext','brext');
+    const iObj  =col('objetivo');
+    function g(r,i){return i>=0&&i<r.length?String(r[i]||'').trim():'';}
+    accounts=rows.slice(1).map(r=>({
+      nome:g(r,iNome),
+      saldoInicial:iSaldo>=0?parseSheetNum(r[iSaldo]):0,
+      tipo:g(r,iTipo)||'Corrente',
+      moeda:g(r,iMoeda)||'BRL',
+      status:g(r,iStat)||'Ativo',
+      banco:g(r,iBanco),
+      temporalidade:g(r,iTemp),
+      rfRv:g(r,iRfRv),
+      subtipo:g(r,iSub),
+      brExt:g(r,iBrExt),
+      objetivo:g(r,iObj)
+    })).filter(a=>a.nome);
+  }catch(e){console.error('loadAccounts:',e);accounts=[];}
 }
 
 async function loadCurrency(){
