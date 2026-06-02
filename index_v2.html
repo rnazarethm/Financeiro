@@ -1383,7 +1383,6 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
     // Accounts summary
     const acctRows=accounts.filter(a=>a.status==='Ativo').map(a=>{const bal=getAccountBalance(a.nome);const balDisp=toDisplay(bal,a.moeda,new Date().getFullYear(),new Date().getMonth()+1);return`<div class="acct-row"><div><span style="font-weight:500">${a.nome}</span><span class="acct-badge">${a.tipo}</span><span class="acct-badge" style="background:${a.moeda==='EUR'?'rgba(61,79,53,.15)':'rgba(232,130,30,.15)'};color:${a.moeda==='EUR'?'var(--dark)':'var(--orange)'}">${a.moeda}</span></div><span style="font-weight:700;color:${balDisp>=0?'var(--mid)':'var(--red)'}">${fmtV(bal,a.moeda,new Date().getFullYear(),new Date().getMonth()+1)}</span></div>`;}).join('');
 
-=========
     cont.innerHTML=`
       <div class="sum-grid" style="margin-bottom:12px">
         <div class="sum-item accent"><div class="sum-label">Patrimônio total</div><div class="sum-val">${fmtK(patrimTotal)}</div></div>
