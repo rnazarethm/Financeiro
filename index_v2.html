@@ -1405,7 +1405,6 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
       </div>`;
     destroyChart('bal');
     charts['bal']=new Chart(document.getElementById('ch-bal'),{type:'bar',data:{labels,datasets:[{data:balances,backgroundColor:balances.map(v=>v>=0?'#5E7F44':'#C0392B'),borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>`${displayCurrency==='EUR'?'€':'R$'}${(v/1000).toFixed(1)}k`,font:{family:'Inter',size:10}}}}}});
-  }
   }else if(dashTab==='investimentos'){
     var now2=new Date();var ny=now2.getFullYear(),nm=now2.getMonth()+1;
     var invAccts=accounts.filter(function(a){return a.status==='Ativo'&&a.tipo==='Investimento';});
@@ -1534,6 +1533,7 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
       }
     }
   }
+}
 
 function toggleBankCard(id){
   const el=document.getElementById(id);
