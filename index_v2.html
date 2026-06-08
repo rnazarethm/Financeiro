@@ -277,6 +277,16 @@ table.data tr:last-child td{border-bottom:none}
 .bank-acct:last-child{border-bottom:none}
 /* ── REEMBOLSO ────────────────────────────────────────── */
 .badge-reemb{background:rgba(232,130,30,.15);color:var(--orange)}
+.badge-ajuste{background:rgba(108,108,112,.12);color:var(--muted)}
+/* ── ALLOC TABLE ──────────────────────────────────────── */
+.alloc-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.alloc-tbl th{background:#f0efeb;padding:5px 7px;font-weight:600;text-align:center;white-space:nowrap;border:1px solid var(--border)}
+.alloc-tbl td{padding:6px 7px;border:1px solid var(--border);white-space:nowrap}
+.alloc-tbl td.region{background:rgba(61,79,53,.08);color:#2D5A3D;font-weight:700;font-size:10px;text-align:center}
+.alloc-tbl td.subtipo{font-size:10px;color:var(--muted)}
+.alloc-tbl td.num{text-align:right}
+.alloc-tbl tr.total-row td{font-weight:700;background:#f0efeb}
+.alloc-ideal{width:34px;border:1px solid var(--border);border-radius:4px;padding:1px 3px;font-size:10px;text-align:center;background:var(--bg);color:var(--dark);font-family:'Inter',sans-serif}
 /* ── DAILY EDIT ───────────────────────────────────────── */
 .daily-edit-input{width:65px;padding:3px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:700;text-align:center;color:var(--dark);font-family:'Inter',sans-serif;outline:none;background:var(--card)}
 .daily-edit-input:focus{border-color:var(--mid)}
@@ -341,6 +351,7 @@ table.data tr:last-child td{border-bottom:none}
           <div class="tbtn" onclick="setLancarType('parcela',this)">💳 Parcela</div>
           <div class="tbtn" onclick="setLancarType('transferencia',this)">↔ Transferência</div>
           <div class="tbtn" onclick="setLancarType('reembolso',this)">↩ Reembolso</div>
+          <div class="tbtn" onclick="setLancarType('ajuste',this)">⚖ Ajuste</div>
         </div>
       </div>
       <div class="card" id="lancar-form-card">
@@ -364,7 +375,7 @@ table.data tr:last-child td{border-bottom:none}
         <select class="filter-select" id="lt-ano" onchange="renderLancamentos()"><option value="">Todos os anos</option></select>
         <select class="filter-select" id="lt-mes" onchange="renderLancamentos()"><option value="">Todos os meses</option></select>
         <select class="filter-select" id="lt-cat" onchange="renderLancamentos()"><option value="">Todas as categorias</option></select>
-        <select class="filter-select" id="lt-tipo" onchange="renderLancamentos()"><option value="">Todos os tipos</option><option>Despesa</option><option>Receita</option><option>Parcela</option><option>Transferência</option><option>Reembolso</option></select>
+        <select class="filter-select" id="lt-tipo" onchange="renderLancamentos()"><option value="">Todos os tipos</option><option>Despesa</option><option>Receita</option><option>Parcela</option><option>Transferência</option><option>Reembolso</option><option>Ajuste</option></select>
         <select class="filter-select" id="lt-conta" onchange="renderLancamentos()"><option value="">Todas as contas</option></select>
         <input class="filter-search" id="lt-search" placeholder="🔍 Buscar..." oninput="renderLancamentos()">
       </div>
@@ -419,7 +430,7 @@ table.data tr:last-child td{border-bottom:none}
       <div class="fg"><label class="fl">Subcategoria</label><select class="fs" id="ed-subcat"></select></div>
     </div>
     <div class="fi-row">
-      <div class="fg"><label class="fl">Tipo</label><select class="fs" id="ed-tipo"><option>Despesa</option><option>Receita</option><option>Parcela</option><option>Transferência</option><option>Reembolso</option></select></div>
+      <div class="fg"><label class="fl">Tipo</label><select class="fs" id="ed-tipo"><option>Despesa</option><option>Receita</option><option>Parcela</option><option>Transferência</option><option>Reembolso</option><option>Ajuste</option></select></div>
       <div class="fg"><label class="fl">Conta</label><select class="fs" id="ed-conta"></select></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:14px">
@@ -729,6 +740,7 @@ async function savePlannedDiario(val){
 
 function isReceita(r){return r.tipo==='Receita';}
 function isTransf(r){return r.tipo==='Transferência';}
+function isAjuste(r){return r.tipo==='Ajuste';}
 
 function despesas(data){return(data||allData).filter(r=>isDespesa(r));}
 function receitas(data){return(data||allData).filter(r=>isReceita(r));}
@@ -1172,11 +1184,11 @@ function renderLancarForm(){
     card.innerHTML=`
       <div class="fg"><label class="fl">Conta</label><select class="fs" id="l-conta">${accountOptions()}</select></div>
       <div class="fi-row">
-        <div class="fg"><label class="fl">Valor</label><input class="fi" id="l-valor" type="number" step="0.01" placeholder="0,00"></div>
+        <div class="fg"><label class="fl">Valor</label><input class="fi" id="l-valor" type="number" step="0.01" placeholder="${lancarType==='ajuste'?'Ex: 10 ou -10':'0,00'}">${lancarType==='ajuste'?'<div style="font-size:10px;color:var(--muted);margin-top:3px">Positivo aumenta o saldo · Negativo diminui</div>':''}</div>
         <div class="fg"><label class="fl">Data</label><input class="fi" id="l-data" type="date" value="${today}"></div>
       </div>
-      <div class="fg"><label class="fl">Descrição</label><input class="fi" id="l-desc" placeholder="Ex: Almoço"></div>
-      ${lancarType!=='receita'?`
+      <div class="fg"><label class="fl">Descrição</label><input class="fi" id="l-desc" placeholder="${lancarType==='ajuste'?'Ex: Ajuste de saldo':'Ex: Almoço'}"></div>
+      ${lancarType!=='receita'&&lancarType!=='ajuste'?`
       <div class="fi-row">
         <div class="fg">
           <label class="fl fl-row">Categoria <span class="add-link" onclick="toggleAddCatL()">＋ nova</span></label>
@@ -1220,7 +1232,7 @@ function getMoedaConta(nomeOuSelect){
 
 async function lancarGasto(){
   const valor=parseFloat(document.getElementById('l-valor').value);
-  if(!valor||valor<=0){toast('⚠ Informe o valor');return}
+  if(lancarType==='ajuste'?isNaN(valor)||valor===0:!valor||valor<=0){toast('⚠ Informe o valor');return}
   const desc=document.getElementById('l-desc').value.trim();
   if(!desc){toast('⚠ Informe a descrição');return}
   const data=document.getElementById('l-data').value;
@@ -1229,6 +1241,13 @@ async function lancarGasto(){
   const moeda=getMoedaConta(conta);
   const[ano,mes]=data.split('-').map(Number);
   const dataBR=isoToBR(data);
+  if(lancarType==='ajuste'){
+    const descAj=document.getElementById('l-desc').value.trim()||'Ajuste de saldo';
+    await shAppend('Cashflow!A:H',[[valor,moeda,dataBR,descAj,conta,'Ajuste','Ajuste','']]);
+    toast('✓ Ajuste registrado!');
+    document.getElementById('l-valor').value='';document.getElementById('l-desc').value='';
+    await loadAllData();return;
+  }
   if(lancarType==='reembolso'){
     const cat2=document.getElementById('l-cat')?.value||'';
     const sub2=document.getElementById('l-subcat')?.value||'';
@@ -1447,6 +1466,76 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
     var groupVals=groupKeys.map(function(k){return groupTotals[k];});
     var barColors=['#2D5A3D','#3A7D44','#5E7F44','#7A9B5C','#E8821E','#B5925A','#C0392B','#8B6F47'];
 
+    // ── ALLOC TABLE DATA ──────────────────────────────────
+    var allocTemp=window._allocTemp||'';
+    var allocInv=allocTemp?invAccts.filter(function(a){return a.temporalidade===allocTemp;}):invAccts;
+    var uniqTempsAlloc=[...new Set(invAccts.map(function(a){return a.temporalidade;}).filter(Boolean))].sort();
+    var allocIdeals=JSON.parse(localStorage.getItem('inv_alloc_ideals')||'{}');
+    function aIdeal(k){return allocIdeals[k]||0;}
+    function aSum(fn){return allocInv.filter(fn).reduce(function(s,a){return s+dispBal(a);},0);}
+    var brIPCA_RF=aSum(function(a){return a.brExt==='BR'&&/IPCA/i.test(a.subtipo||'')&&a.rfRv==='RF';});
+    var brIPCA_RV=aSum(function(a){return a.brExt==='BR'&&/IPCA/i.test(a.subtipo||'')&&a.rfRv==='RV';});
+    var brCDI_RF =aSum(function(a){return a.brExt==='BR'&&/(CDI|SELIC)/i.test(a.subtipo||'')&&a.rfRv==='RF';});
+    var brCDI_RV =aSum(function(a){return a.brExt==='BR'&&/(CDI|SELIC)/i.test(a.subtipo||'')&&a.rfRv==='RV';});
+    var ext_RF   =aSum(function(a){return a.brExt==='EXT'&&a.rfRv==='RF';});
+    var ext_RV   =aSum(function(a){return a.brExt==='EXT'&&a.rfRv==='RV';});
+    var tot_RF   =brIPCA_RF+brCDI_RF+ext_RF;
+    var tot_RV   =brIPCA_RV+brCDI_RV+ext_RV;
+    var tot_ALL  =tot_RF+tot_RV;
+    function aPct(v){return tot_ALL>0?Math.round(v/tot_ALL*100):0;}
+    function aDiff(pct,ideal){if(!ideal)return'';if(pct>ideal+3)return'color:var(--red)';if(pct<ideal-3)return'color:#2563eb';return'color:var(--mid)';}
+    function aIdealInput(k){return'<input type="number" class="alloc-ideal" min="0" max="100" value="'+aIdeal(k)+'" onchange="saveAllocIdeal(\''+k+'\',this.value)">%';}
+    function allocRow(region,regionKey,subtipo,subKey,rfVal,rvVal){
+      var rowTotal=rfVal+rvVal;
+      var rfPct=aPct(rfVal),rvPct=aPct(rvVal);
+      var rfKey='alloc_'+regionKey+'_'+subKey+'_rf';
+      var rvKey='alloc_'+regionKey+'_'+subKey+'_rv';
+      return'<tr>'
+        +'<td class="region" rowspan="1">'+region+'</td>'
+        +'<td class="subtipo">'+subtipo+'</td>'
+        +'<td class="num">'+fmt(rfVal)+'</td>'
+        +'<td class="num" style="'+aDiff(rfPct,aIdeal(rfKey))+'">'+rfPct+'%</td>'
+        +'<td class="num">'+aIdealInput(rfKey)+'</td>'
+        +'<td class="num" style="border-left:2px solid var(--border)">'+fmt(rvVal)+'</td>'
+        +'<td class="num" style="'+aDiff(rvPct,aIdeal(rvKey))+'">'+rvPct+'%</td>'
+        +'<td class="num">'+aIdealInput(rvKey)+'</td>'
+        +'<td class="num" style="border-left:2px solid var(--border);font-weight:600">'+fmt(rowTotal)+'</td>'
+        +'</tr>';
+    }
+    var tempOpts='<option value="">Toda temporalidade</option>'+uniqTempsAlloc.map(function(t){return'<option value="'+t+'"'+(allocTemp===t?' selected':'')+'>'+t+'</option>';}).join('');
+    var allocTableHTML='<div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">'
+      +'<div style="padding:10px 14px;background:rgba(61,79,53,.07);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;border-bottom:1px solid var(--border)">'
+      +'<div style="font-weight:700;font-size:12px;color:var(--dark)">Alocação de Ativos <span style="font-size:10px;font-weight:400;color:var(--muted)">— clique em % Ideal para editar</span></div>'
+      +'<select class="filter-select" style="font-size:11px" onchange="window._allocTemp=this.value;renderDashboard()">'+tempOpts+'</select>'
+      +'</div>'
+      +'<div class="tbl-wrap"><table class="alloc-tbl">'
+      +'<thead><tr>'
+      +'<th rowspan="2" style="width:40px">Região</th>'
+      +'<th rowspan="2">Tipo</th>'
+      +'<th colspan="3" style="background:rgba(58,125,68,.1);color:var(--dark);border-left:2px solid var(--border)">Renda Fixa</th>'
+      +'<th colspan="3" style="background:rgba(232,130,30,.1);color:var(--orange);border-left:2px solid var(--border)">Renda Variável</th>'
+      +'<th rowspan="2" style="border-left:2px solid var(--border)">Total</th>'
+      +'</tr><tr>'
+      +'<th>Valor</th><th>% Atual</th><th>% Ideal</th>'
+      +'<th style="border-left:2px solid var(--border)">Valor</th><th>% Atual</th><th>% Ideal</th>'
+      +'</tr></thead>'
+      +'<tbody>'
+      +allocRow('BR','br','IPCA','ipca',brIPCA_RF,brIPCA_RV)
+      +allocRow('BR','br','Selic/CDI','cdi',brCDI_RF,brCDI_RV)
+      +allocRow('EXT','ext','Internacional','ext',ext_RF,ext_RV)
+      +'<tr class="total-row">'
+      +'<td colspan="2" style="font-weight:700;font-size:11px">Total</td>'
+      +'<td class="num">'+fmt(tot_RF)+'</td>'
+      +'<td class="num">'+aPct(tot_RF)+'%</td>'
+      +'<td class="num">—</td>'
+      +'<td class="num" style="border-left:2px solid var(--border)">'+fmt(tot_RV)+'</td>'
+      +'<td class="num">'+aPct(tot_RV)+'%</td>'
+      +'<td class="num">—</td>'
+      +'<td class="num" style="border-left:2px solid var(--border)">'+fmt(tot_ALL)+'</td>'
+      +'</tr>'
+      +'</tbody></table></div></div>';
+    // ─────────────────────────────────────────────────────
+
     var allBancos2=[...new Set(accounts.filter(function(a){return a.status==='Ativo'&&a.banco;}).map(function(a){return a.banco;}))].sort();
 
     function bankSectionHTML2(banco){
@@ -1525,6 +1614,7 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
       +'<div class="sum-item"><div class="sum-label">Exterior</div><div class="sum-val">'+fmtK(totalEXT)+'</div></div>'
       +'<div class="sum-item"><div class="sum-label">Contas operac.</div><div class="sum-val">'+fmtK(totalOp)+'</div></div>'
       +'</div>'
+      +allocTableHTML
       +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div class="card-title" style="margin-bottom:0">Alocação por</div><div style="display:flex;gap:5px;flex-wrap:wrap">'+['Banco','Subtipo','Temporalidade','Objetivo'].map(groupBtn).join('')+'</div></div>'
       +'<div class="chart-box" style="height:'+Math.max(160,groupKeys.length*38)+'px"><canvas id="ch-inv-alloc"></canvas></div></div>'
       +'<div style="margin-bottom:4px"><div class="card-title" style="margin-bottom:10px">Por banco</div>'+(bankCards2||'<p style="color:var(--muted);font-size:13px">Configure a coluna Banco em Accounts.</p>')+'</div>'
@@ -1615,7 +1705,7 @@ function renderLancamentos(){
   const totalRec=data.filter(r=>isReceita(r)).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
   document.getElementById('lt-summary').innerHTML=`<div style="display:flex;gap:10px;font-size:12px;flex-wrap:wrap;align-items:center"><div class="tag">${data.length} lançamentos</div><div class="tag" style="color:var(--red)">Despesas: ${fmt(totalDesp)}</div>${totalRec>0?`<div class="tag" style="color:var(--mid)">Receitas: ${fmt(totalRec)}</div>`:''}<div style="font-size:11px;color:var(--muted);margin-left:auto">Clique para editar</div></div>`;
   const thSort=(col,label)=>`<th onclick="sortLt('${col}')" style="text-align:${col==='valor'?'right':'left'}">${label} ${ltSort.col===col?(ltSort.dir===1?'↑':'↓'):''}</th>`;
-  const tipoBadge=t=>t==='Receita'?'badge-g':t==='Parcela'?'badge-o':t==='Transferência'?'badge-b':t==='Reembolso'?'badge-reemb':'badge-r';
+  const tipoBadge=t=>t==='Receita'?'badge-g':t==='Parcela'?'badge-o':t==='Transferência'?'badge-b':t==='Reembolso'?'badge-reemb':t==='Ajuste'?'badge-ajuste':'badge-r';
   document.getElementById('lt-table').innerHTML=`
     <thead><tr>${thSort('data','Data')}${thSort('cat','Categoria')}<th>Descrição</th><th>Tipo</th><th>Conta</th><th>Moeda</th>${thSort('valor','Valor')}</tr></thead>
     <tbody>${data.slice(0,200).map(r=>`<tr onclick="editLancamento(${r._row})" style="cursor:pointer">
@@ -1625,10 +1715,11 @@ function renderLancamentos(){
       <td><span class="badge ${tipoBadge(r.tipo)}">${r.tipo}</span></td>
       <td class="td-muted">${r.conta||'—'}</td>
       <td class="td-muted">${r.moeda}</td>
-      <td class="td-r" style="color:${isReceita(r)?'var(--mid)':isReembolso(r)?'var(--orange)':isTransf(r)?'var(--muted)':'var(--red)'}">${isReceita(r)?'+':isReembolso(r)?'↩':'−'}${fmtV(Math.abs(r.valor),r.moeda,r.ano,r.nMes)}</td>
+      <td class="td-r" style="color:${isReceita(r)?'var(--mid)':isReembolso(r)?'var(--orange)':isTransf(r)||isAjuste(r)?'var(--muted)':'var(--red)'}">${isReceita(r)?'+':isReembolso(r)?'↩':isAjuste(r)?(r.valor>=0?'+':'−'):isTransf(r)?'':' −'}${fmtV(Math.abs(r.valor),r.moeda,r.ano,r.nMes)}</td>
     </tr>`).join('')}${data.length>200?`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:12px">Mostrando 200 de ${data.length}. Refine os filtros.</td></tr>`:''}</tbody>`;
 }
 function sortLt(col){ltSort={col,dir:ltSort.col===col?-ltSort.dir:1};renderLancamentos();}
+function saveAllocIdeal(k,v){var d=JSON.parse(localStorage.getItem('inv_alloc_ideals')||'{}');d[k]=parseFloat(v)||0;localStorage.setItem('inv_alloc_ideals',JSON.stringify(d));}
 
 let _editRow=null;
 function editLancamento(row){
