@@ -290,6 +290,23 @@ table.data tr:last-child td{border-bottom:none}
 /* ── DAILY EDIT ───────────────────────────────────────── */
 .daily-edit-input{width:65px;padding:3px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:700;text-align:center;color:var(--dark);font-family:'Inter',sans-serif;outline:none;background:var(--card)}
 .daily-edit-input:focus{border-color:var(--mid)}
+/* ── OVERVIEW CARDS (resumo mensal) ─────────────────── */
+.ovw-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:16px}
+.ovw-item{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.ovw-item.accent{background:var(--dark);color:#fff;border-color:transparent}
+.ovw-cat{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px;white-space:nowrap}
+.ovw-item.accent .ovw-cat{color:rgba(255,255,255,.65)}
+.ovw-main{font-size:15px;font-weight:800;line-height:1.15;white-space:nowrap}
+.ovw-main.pos{color:var(--mid)}.ovw-main.neg{color:var(--red)}
+.ovw-sub{font-size:10px;color:var(--muted);margin-top:3px;font-weight:600;white-space:nowrap}
+.ovw-item.accent .ovw-sub{color:rgba(255,255,255,.7)}
+@media(max-width:700px){.ovw-grid{grid-template-columns:repeat(2,1fr)}}
+/* ── INFO TIP (transparência dos cálculos) ──────────── */
+.tip-btn{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(0,0,0,.08);color:var(--muted);font-size:9px;font-weight:700;cursor:pointer;margin-left:5px;vertical-align:middle;user-select:none;font-style:italic;font-family:Georgia,serif;flex-shrink:0}
+.tip-btn:hover{background:var(--dark);color:#fff}
+.ovw-item.accent .tip-btn{background:rgba(255,255,255,.25);color:#fff}
+.tip-formula{background:var(--cream);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:12px;color:var(--dark);margin:8px 0}
+.tip-src{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5}
 
 </style>
 </head>
@@ -485,6 +502,10 @@ table.data tr:last-child td{border-bottom:none}
     <button class="btn btn-outline btn-block" onclick="document.getElementById('export-modal').classList.add('hidden')">Fechar</button>
   </div>
 </div>
+<!-- TIP MODAL (explicação de indicadores) -->
+<div id="tip-modal" class="modal-overlay hidden" onclick="closeTipModal(event)">
+  <div class="modal"><div class="modal-handle"></div><div class="modal-title" id="tip-title"></div><div id="tip-body" style="font-size:13px;line-height:1.6"></div></div>
+</div>
 <div id="toast" class="toast"></div>
 <script>
 // ══════════════════════════════════════════════════════
@@ -520,9 +541,16 @@ const PALETTE=['#3D4F35','#5E7F44','#E8821E','#7A9B5C','#B5925A','#C0392B','#8B6
 const fmtBRL=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0);
 const fmtEUR=v=>new Intl.NumberFormat('pt-PT',{style:'currency',currency:'EUR'}).format(v||0);
 const fmt=v=>displayCurrency==='EUR'?fmtEUR(v):fmtBRL(v);
-const fmtK=v=>{const a=Math.abs(v);const sym=displayCurrency==='EUR'?'€':'R$';return a>=1000?`${sym}${(v/1000).toFixed(1)}k`:fmt(v)};
+const fmtK=v=>fmtN(v); // valor completo — abreviação 1.4k eliminada
 const fmtPct=v=>`${Math.round((v||0)*100)}%`;
+// Valor completo sem centavos (ex: R$ 1.422) — substitui abreviações tipo 1.4k
+const fmtN=v=>new Intl.NumberFormat(displayCurrency==='EUR'?'pt-PT':'pt-BR',{style:'currency',currency:displayCurrency,maximumFractionDigits:0}).format(v||0);
 function isMobile(){return window.innerWidth<=700}
+// ── Tooltips de transparência: fórmula + origem dos dados ──
+window._tips={};
+function tipBtn(key,title,html){window._tips[key]={title,html};return '<span class="tip-btn" onclick="event.stopPropagation();openTip(\''+key+'\')" title="Como é calculado?">i</span>';}
+function openTip(k){const t=window._tips[k];if(!t)return;document.getElementById('tip-title').textContent=t.title;document.getElementById('tip-body').innerHTML=t.html;document.getElementById('tip-modal').classList.remove('hidden');}
+function closeTipModal(e){if(e.target===document.getElementById('tip-modal'))document.getElementById('tip-modal').classList.add('hidden');}
 function toast(msg,dur=2500){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur)}
 function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id]}}
 function toISO(d){if(!d)return'';return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
@@ -688,6 +716,7 @@ async function loadAllData(){
              ano,nMes,_row:i+2};
     }).filter(r=>r.valor!==0);
   }else{allData=[];}
+  _reembByTarget=null;
   await loadAccounts();
   await loadCurrency();
   await loadPlanned();
@@ -717,7 +746,9 @@ async function loadAccounts(){
     const iObj  =col('objetivo');
     const iBase =col('database','database');
     function g(r,i){return i>=0&&i<r.length?String(r[i]||'').trim():'';}
-    accounts=rows.slice(1).map(r=>({
+    window._acctCols={saldo:iSaldo,dataBase:iBase};
+    accounts=rows.slice(1).map((r,idx)=>({
+      _row:idx+2,
       nome:g(r,iNome),
       saldoInicial:iSaldo>=0?parseSheetNum(r[iSaldo]):0,
       tipo:g(r,iTipo)||'Corrente',
@@ -791,7 +822,27 @@ function isDespesa(r){return r.tipo==='Despesa'||r.tipo==='Parcela';}
 function isReembolso(r){return r.tipo==='Reembolso';}
 function reembolsos(data){return(data||allData).filter(r=>isReembolso(r));}
 function reembolsosDoMes(ano,mes){return reembolsos().filter(r=>r.ano===ano&&r.nMes===mes).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,ano,mes)),0);}
-function totMesLiquido(ano,mes){return Math.max(0,totMesDisp(ano,mes)-reembolsosDoMes(ano,mes));}
+
+// ── GASTO LÍQUIDO (reembolso vinculado por RefId abate o lançamento original) ──
+let _reembByTarget=null;
+function reembByTarget(){
+  if(_reembByTarget)return _reembByTarget;
+  const m={};
+  reembolsos().forEach(r=>{if(r.refId)(m[r.refId]=m[r.refId]||[]).push(r);});
+  _reembByTarget=m;return m;
+}
+// Valor líquido (positivo, em moeda de exibição) de um lançamento de despesa
+function netAbsDisp(r){
+  let v=Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes));
+  if(r.id){const rs=reembByTarget()[r.id];if(rs)rs.forEach(rb=>{v-=Math.abs(toDisplay(rb.valor,rb.moeda,rb.ano,rb.nMes));});}
+  return Math.max(0,v);
+}
+// Reembolsos legados (sem vínculo) de um mês — fallback por categoria
+function reembSoltosMes(ano,mes,cat){
+  return reembolsos().filter(r=>!r.refId&&r.ano===ano&&r.nMes===mes&&(!cat||r.cat===cat))
+    .reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,ano,mes)),0);
+}
+function totMesLiquido(ano,mes){return totMesDisp(ano,mes);}
 function plannedDiario(){const p=planned.find(x=>x.cat==='Diário');return p?Math.abs(toDisplay(p.valor,p.moeda,new Date().getFullYear(),new Date().getMonth()+1)):60;}
 async function savePlannedDiario(val){
   const idx=planned.findIndex(p=>p.cat==='Diário');
@@ -809,21 +860,19 @@ function receitas(data){return(data||allData).filter(r=>isReceita(r));}
 // Returns positive amount for display (despesas are stored negative)
 function valorAbs(r){return Math.abs(r.valor);}
 
-// Total despesas in BRL (or display currency) for a month
+// Total LÍQUIDO de despesas do mês (vinculados abatidos por lançamento; legados por categoria/mês)
 function totMesDisp(ano,mes){
-  return despesas().filter(r=>r.ano===ano&&r.nMes===mes)
-    .reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,ano,mes)),0);
+  const liq=despesas().filter(r=>r.ano===ano&&r.nMes===mes).reduce((s,r)=>s+netAbsDisp(r),0);
+  return Math.max(0,liq-reembSoltosMes(ano,mes));
 }
-function totMesBRL(ano,mes){
-  return despesas().filter(r=>r.ano===ano&&r.nMes===mes)
-    .reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,ano,mes)),0);
-}
+function totMesBRL(ano,mes){return totMesDisp(ano,mes);}
 
 function byMesDespesas(ano,mes){return despesas().filter(r=>r.ano===ano&&r.nMes===mes);}
 function byMesReceitas(ano,mes){return receitas().filter(r=>r.ano===ano&&r.nMes===mes);}
 
 function incomeForMonth(ano,mes){
-  const dbInc=receitas().filter(r=>r.ano===ano&&r.nMes===mes)
+  // Rendimento de investimento não é entrada de caixa — afeta só o saldo da conta
+  const dbInc=receitas().filter(r=>r.ano===ano&&r.nMes===mes&&r.cat!=='Rendimentos')
     .reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,ano,mes)),0);
   if(dbInc>0)return dbInc;
   const now=new Date();const cy=now.getFullYear(),cm=now.getMonth()+1;
@@ -834,9 +883,8 @@ function incomeForMonth(ano,mes){
 }
 
 function daySpend(isoDate){
-  const[y,m]=isoDate.split('-').map(Number);
   return allData.filter(r=>r.tipo==='Despesa'&&r.cat!=='Fixo'&&r.dataISO===isoDate)
-    .reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,y,m)),0);
+    .reduce((s,r)=>s+netAbsDisp(r),0);
 }
 
 function monthsWithData(){
@@ -858,10 +906,10 @@ function avgByCat(){
   const ms=monthsWithData();const n=ms.length||1;const tot={};
   const validKeys=new Set(ms.map(m=>`${m.ano}-${m.mes}`));
   despesas().filter(r=>validKeys.has(`${r.ano}-${r.nMes}`))
-    .forEach(r=>{tot[r.cat]=(tot[r.cat]||0)+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes));});
-  reembolsos().filter(r=>validKeys.has(`${r.ano}-${r.nMes}`))
+    .forEach(r=>{tot[r.cat]=(tot[r.cat]||0)+netAbsDisp(r);});
+  reembolsos().filter(r=>!r.refId&&validKeys.has(`${r.ano}-${r.nMes}`))
     .forEach(r=>{tot[r.cat]=(tot[r.cat]||0)-Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes));});
-  const avg={};Object.keys(tot).forEach(c=>avg[c]=tot[c]/n);return avg;
+  const avg={};Object.keys(tot).forEach(c=>avg[c]=Math.max(0,tot[c])/n);return avg;
 }
 
 function fixosDoMes(ano,mes){return allData.filter(r=>r.tipo==='Despesa'&&r.cat==='Fixo'&&r.ano===ano&&r.nMes===mes);}
@@ -875,17 +923,27 @@ function fixosUltimoMes(){
   return fixosDoMes(ultimo.ano,ultimo.nMes);
 }
 
+// Fixos do último mês ANTERIOR ao mês de referência (base p/ previsão)
+function fixosMesAnterior(ano,mes){
+  const k=ano*12+mes;
+  const cand=allData.filter(r=>r.tipo==='Despesa'&&r.cat==='Fixo'&&(r.ano*12+r.nMes)<k);
+  if(!cand.length)return[];
+  const best=cand.reduce((b,r)=>(r.ano*12+r.nMes)>(b.ano*12+b.nMes)?r:b,cand[0]);
+  return fixosDoMes(best.ano,best.nMes);
+}
+
 function lastUpdatedDate(){
   const entries=allData.filter(r=>r.dataISO&&r.tipo==='Despesa'&&r.cat!=='Fixo');
   if(!entries.length)return null;
   return entries.reduce((best,r)=>r.dataISO>best?r.dataISO:best,'');
 }
 
-// Account balance
+// Account balance — saldo = saldoInicial na DataBase + movimentações com data >= DataBase
 function getAccountBalance(nomeOuId){
   const acct=accounts.find(a=>a.nome===nomeOuId||String(a.id)===String(nomeOuId));
   if(!acct)return 0;
-  const txns=allData.filter(r=>r.conta===acct.nome);
+  const base=acct.dataBase||'';
+  const txns=allData.filter(r=>r.conta===acct.nome&&(!base||(r.dataISO&&r.dataISO>=base)));
   const txTotal=txns.reduce((s,r)=>s+r.valor,0);
   return acct.saldoInicial+txTotal;
 }
@@ -897,9 +955,9 @@ function plannedForCat(cat){
   return Math.abs(toDisplay(p.valor,p.moeda,new Date().getFullYear(),new Date().getMonth()+1));
 }
 function spentThisMonthByCat(cat){
-  const now=new Date();
-  return despesas().filter(r=>r.cat===cat&&r.ano===now.getFullYear()&&r.nMes===now.getMonth()+1)
-    .reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
+  const now=new Date();const y=now.getFullYear(),m=now.getMonth()+1;
+  const liq=despesas().filter(r=>r.cat===cat&&r.ano===y&&r.nMes===m).reduce((s,r)=>s+netAbsDisp(r),0);
+  return Math.max(0,liq-reembSoltosMes(y,m,cat));
 }
 function projectedSpend(cat){
   const now=new Date();
@@ -918,6 +976,20 @@ function totalPatrimonio(){
   },0);
 }
 
+// Aportes do mês: pernas de crédito de transferências subtipo 'investimento' p/ contas de Investimento
+function aporteMensal(ano,mes){
+  const invNames=new Set(accounts.filter(a=>a.tipo==='Investimento').map(a=>a.nome));
+  return allData.filter(r=>isTransf(r)&&r.cat==='investimento'&&r.valor>0&&r.ano===ano&&r.nMes===mes&&invNames.has(r.conta))
+    .reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,ano,mes)),0);
+}
+
+function applyDashFilters(d){
+  if(dashFilters.anos.length)d=d.filter(r=>dashFilters.anos.includes(String(r.ano)));
+  if(dashFilters.meses.length)d=d.filter(r=>dashFilters.meses.includes(String(r.nMes)));
+  if(dashFilters.cats.length)d=d.filter(r=>dashFilters.cats.includes(r.cat));
+  if(dashFilters.subcats.length)d=d.filter(r=>dashFilters.subcats.includes(r.subcat));
+  return d;
+}
 function filteredDespesas(){
   let d=despesas();
   if(dashFilters.anos.length)d=d.filter(r=>dashFilters.anos.includes(String(r.ano)));
@@ -948,9 +1020,9 @@ function renderDiarioMensal(){
   const isFutOrCur=(diarioYear>today.getFullYear())||(diarioYear===today.getFullYear()&&diarioMonth>=today.getMonth()+1);
   const fixosEst=fixosDB.length===0&&isFutOrCur;
   const fixosDisp=fixosEst?fixosUltimoMes():fixosDB;
-  const ft=fixosDisp.reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
+  const ft=fixosDisp.reduce((s,r)=>s+netAbsDisp(r),0);
   const parcDB=parcelasDoMes(diarioYear,diarioMonth);
-  const pt=parcDB.reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
+  const pt=parcDB.reduce((s,r)=>s+netAbsDisp(r),0);
 
   // Calendar cells (only daySpend = Despesa & cat!==Fixo)
   let calCells='';
@@ -969,31 +1041,44 @@ function renderDiarioMensal(){
     let extra='';
     if(overLim)extra='border-color:rgba(192,57,43,.5);background:rgba(192,57,43,.08)';
     else if(underLim)extra='border-color:rgba(58,125,68,.4);background:rgba(58,125,68,.08)';
+    else if(isPast&&!isToday&&val===0)extra='background:rgba(0,0,0,.05);border-color:transparent;color:var(--muted)';
     calCells+=`<div class="cal-day ${cls}${hasData?' has-data':''}" style="${extra}" ${hasData?`onclick="openDayModal('${iso}','${d} de ${MONTHS[diarioMonth-1]}')"`:''}>
-      <div class="cal-num">${d}</div>${(isPast&&val>0)||!isPast?`<div class="cal-val" style="${!isPast?'opacity:.3':''}">${val>=1000?(val/1000).toFixed(1)+'k':Math.round(val)}</div>`:''}</div>`;
+      <div class="cal-num">${d}</div>${(isPast&&val>0)||!isPast?`<div class="cal-val" style="${!isPast?'opacity:.3':''}">${Math.round(val).toLocaleString('pt-BR')}</div>`:''}</div>`;
   }
 
   const totalDesp=ft+pt+dailyReal;
   const saldo=inc-totalDesp;
 
+  // Efetivado vs Previsto (previsto = total projetado do mês)
+  const ftEf=fixosDB.reduce((s,r)=>s+netAbsDisp(r),0);
+  let ftPrevTot=ftEf;
+  if(isFutOrCur){
+    const ativos=[...new Set(fixosMesAnterior(diarioYear,diarioMonth).map(r=>r.det))];
+    const ultimoValor=det=>{const rows=allData.filter(r=>r.tipo==='Despesa'&&r.cat==='Fixo'&&r.det===det).sort((a,b)=>b.ano*12+b.nMes-(a.ano*12+a.nMes));return rows.length?netAbsDisp(rows[0]):0;};
+    ftPrevTot=ativos.reduce((s,det)=>{const row=fixosDB.find(r=>r.det===det);return s+(row?netAbsDisp(row):ultimoValor(det));},0);
+    fixosDB.filter(r=>!ativos.includes(r.det)).forEach(r=>{ftPrevTot+=netAbsDisp(r);});
+  }
+  const diaEf=dailyReal,diaPrevTot=dailyReal+dailyFut;
+  const totEf=ftEf+pt+diaEf;
+  const totPrevTot=ftPrevTot+pt+diaPrevTot;
+  const saldoEf=inc-totEf,saldoPrev=inc-totPrevTot;
+
   // Budget cards using new CSS classes
-  const catIcon={'Alimentacao':'','Alimentação':'🍽','Consumo Pessoal':'🛍','Fixo':'📌','Lazer':'🎭','Saude':'','Saúde':'💊','Transporte':'🚌'};
   function semCol(pct){return pct>1?'red':pct>.85?'orange':pct>.6?'yellow':'green';}
   const budCats=planned.filter(p=>p.cat!=='Receita'&&p.cat!=='Diário');
   let totalBud=0,totalGasto=0;
   const budCards=budCats.map(p=>{
     const budget=Math.abs(toDisplay(p.valor,p.moeda,diarioYear,diarioMonth));
-    const spentRaw=despesas().filter(r=>r.cat===p.cat&&r.ano===diarioYear&&r.nMes===diarioMonth).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
-    const reemb=reembolsos().filter(r=>r.cat===p.cat&&r.ano===diarioYear&&r.nMes===diarioMonth).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
+    const spentRaw=despesas().filter(r=>r.cat===p.cat&&r.ano===diarioYear&&r.nMes===diarioMonth).reduce((s,r)=>s+netAbsDisp(r),0);
+    const reemb=reembSoltosMes(diarioYear,diarioMonth,p.cat);
     const spent=Math.max(0,spentRaw-reemb);
     totalBud+=budget;totalGasto+=spent;
     const pct=budget>0?spent/budget:0;
     const col=semCol(pct);
     const remaining=budget-spent;
-    const icon=catIcon[p.cat]||'💰';
     return`<div class="bud-card">
       <div class="bud-card-top">
-        <div class="bud-cat-label">${icon} ${p.cat}</div>
+        <div class="bud-cat-label">${p.cat}</div>
         <div class="bud-pct-badge ${col}">${Math.round(pct*100)}%</div>
       </div>
       <div class="bud-bar"><div class="bud-bar-inner ${col}" style="width:${Math.min(pct*100,100)}%"></div></div>
@@ -1034,15 +1119,13 @@ function renderDiarioMensal(){
       <button class="btn-icon" onclick="changeDiarioMonth(1)">›</button>
     </div>
     ${lastUpStr?`<div style="text-align:center;font-size:11px;color:var(--muted);margin-bottom:12px">📌 Última atualização: <b style="color:var(--dark)">${lastUpStr}</b></div>`:''}
-    <div class="sum-grid-3">
-      <div class="sum-item"><div class="sum-label">Total saídas</div><div class="sum-val">${fmtK(totalDesp)}</div></div>
-      <div class="sum-item"><div class="sum-label">Receitas</div><div class="sum-val pos">${fmtK(inc)}</div></div>
-      <div class="sum-item ${saldo>=0?'accent':''}"><div class="sum-label">Saldo</div><div class="sum-val ${saldo<0?'neg':''}">${fmtK(saldo)}</div></div>
-    </div>
-    <div class="sum-grid-3" style="margin-bottom:16px">
-      <div class="sum-item"><div class="sum-label">Fixos</div><div class="sum-val">${fmtK(ft)}${fixosEst?'<span style="color:var(--orange);font-size:10px"> est.</span>':''}</div></div>
-      <div class="sum-item"><div class="sum-label">Parcelas</div><div class="sum-val">${fmtK(pt)}</div></div>
-      <div class="sum-item"><div class="sum-label">Dia a dia</div><div class="sum-val ora">${fmtK(dailyReal)}</div></div>
+    <div class="ovw-grid">
+      <div class="ovw-item"><div class="ovw-cat">Receitas${tipBtn('m_rec','Receitas',`<div class="tip-formula">Receita total = soma das receitas do mês</div><div>${fmt(inc)}</div><div class="tip-src">Origem: aba Cashflow, tipo Receita (exclui categoria Rendimentos). Sem lançamentos em mês atual/futuro, usa a linha Receita da aba Planned.</div>`)}</div><div class="ovw-main pos">${fmtN(inc)}</div></div>
+      <div class="ovw-item"><div class="ovw-cat">Gastos Fixos${tipBtn('m_fix','Gastos Fixos',`<div class="tip-formula">Efetivado = Σ líquido (gasto − reembolso vinculado)<br>Previsto = fixos do mês anterior projetados</div><div>Efetivado: ${fmt(ftEf)} · Previsto: ${fmt(ftPrevTot)}</div><div class="tip-src">Origem: Cashflow, tipo Despesa, categoria Fixo, no mês ${MONTHS[diarioMonth-1]}/${diarioYear}.</div>`)}</div><div class="ovw-main">${fmtN(ftEf)}</div><div class="ovw-sub">Previsto: ${fmtN(ftPrevTot)}</div></div>
+      <div class="ovw-item"><div class="ovw-cat">Parcelas${tipBtn('m_parc','Parcelas',`<div class="tip-formula">Total = Σ líquido das parcelas do mês</div><div>${fmt(pt)}</div><div class="tip-src">Origem: Cashflow, tipo Parcela, mês ${MONTHS[diarioMonth-1]}/${diarioYear}.</div>`)}</div><div class="ovw-main">${fmtN(pt)}</div></div>
+      <div class="ovw-item"><div class="ovw-cat">Dia a Dia${tipBtn('m_dia','Gastos do Dia a Dia',`<div class="tip-formula">Efetivado = Σ líquido das despesas (exceto Fixo) até hoje<br>Previsto = efetivado + dias restantes × limite diário (${fmt(dailyLim)})</div><div>Efetivado: ${fmt(diaEf)} · Previsto: ${fmt(diaPrevTot)}</div><div class="tip-src">Origem: Cashflow, tipo Despesa com categoria ≠ Fixo. Limite diário: aba Planned, linha Diário.</div>`)}</div><div class="ovw-main">${fmtN(diaEf)}</div><div class="ovw-sub">Previsto: ${fmtN(diaPrevTot)}</div></div>
+      <div class="ovw-item"><div class="ovw-cat">Totais${tipBtn('m_tot','Gastos Totais',`<div class="tip-formula">Efetivado = Fixos + Parcelas + Dia a dia<br>${fmt(ftEf)} + ${fmt(pt)} + ${fmt(diaEf)} = ${fmt(totEf)}</div><div class="tip-formula">Previsto = ${fmt(ftPrevTot)} + ${fmt(pt)} + ${fmt(diaPrevTot)} = ${fmt(totPrevTot)}</div><div class="tip-src">Todos os valores são líquidos de reembolsos vinculados.</div>`)}</div><div class="ovw-main">${fmtN(totEf)}</div><div class="ovw-sub">Previsto: ${fmtN(totPrevTot)}</div></div>
+      <div class="ovw-item accent"><div class="ovw-cat">Saldo${tipBtn('m_sal','Saldo',`<div class="tip-formula">Saldo = Receitas − Gastos efetivados<br>${fmt(inc)} − ${fmt(totEf)} = ${fmt(saldoEf)}</div><div class="tip-formula">Saldo previsto = Receitas − Gastos previstos<br>${fmt(inc)} − ${fmt(totPrevTot)} = ${fmt(saldoPrev)}</div>`)}</div><div class="ovw-main ${saldoEf<0?'neg':''}">${fmtN(saldoEf)}</div><div class="ovw-sub">Previsto: ${fmtN(saldoPrev)}</div></div>
     </div>
     ${budSection}
     <div class="card">
@@ -1051,7 +1134,7 @@ function renderDiarioMensal(){
     </div>
     <div class="card">
       <div class="sec-hdr"><span>Gastos Fixos${fixosEst?'<span style="color:var(--orange);font-size:10px;margin-left:6px">estimativa</span>':''}</span><span>${fmt(ft)}</span></div>
-      ${fixosDisp.length?fixosDisp.map(f=>`<div class="drow" style="${fixosEst?'opacity:.7':''}"><div><span style="font-weight:500">${f.det||f.cat}</span>${f.subcat?`<span style="color:var(--muted);font-size:11px;margin-left:6px">${f.subcat}</span>`:''}</div><span class="drow-val">${fmtV(Math.abs(f.valor),f.moeda,f.ano,f.nMes)}</span></div>`).join(''):'<div style="color:var(--muted);font-size:13px;padding:8px 0">Nenhum fixo</div>'}
+      ${fixosDisp.length?fixosDisp.map(f=>`<div class="drow" style="${fixosEst?'opacity:.7':''}"><div><span style="font-weight:500">${f.det||f.cat}</span>${f.subcat?`<span style="color:var(--muted);font-size:11px;margin-left:6px">${f.subcat}</span>`:''}</div><span class="drow-val">${fmt(netAbsDisp(f))}</span></div>`).join(''):'<div style="color:var(--muted);font-size:13px;padding:8px 0">Nenhum fixo</div>'}
     </div>
     <div class="card">
       <div class="sec-hdr"><span>Parcelas Ativas</span><span>${fmt(pt)}</span></div>
@@ -1064,7 +1147,7 @@ function renderDiarioMensal(){
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Calendário</div>
-        <div style="font-size:11px;color:var(--muted)"><span style="color:var(--mid)">■</span> &le;${fmt(dailyLim)}&nbsp;&nbsp;<span style="color:var(--red)">■</span> acima</div>
+        <div style="font-size:11px;color:var(--muted)"><span style="color:var(--mid)">■</span> &le;${fmt(dailyLim)}&nbsp;&nbsp;<span style="color:var(--red)">■</span> acima&nbsp;&nbsp;<span style="color:rgba(0,0,0,.25)">■</span> sem gasto</div>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:8px;padding:8px 10px;background:var(--bg);border-radius:8px">
         <span>Real: <b style="color:var(--text)">${fmt(dailyReal)}</b></span>
@@ -1108,9 +1191,9 @@ function renderDiarioAnual(){
   const fixoNomes=[...new Set(fixosAno.map(r=>r.det))];
   const allParcDB=allData.filter(r=>r.tipo==='Parcela');
   const parcNomes=[...new Set(allParcDB.filter(r=>r.ano===year).map(r=>r.det))];
-  const fixoUltimoValor=det=>{const rows=allData.filter(r=>r.tipo==='Despesa'&&r.cat==='Fixo'&&r.det===det).sort((a,b)=>b.ano*12+b.nMes-(a.ano*12+a.nMes));return rows.length?Math.abs(toDisplay(rows[0].valor,rows[0].moeda,rows[0].ano,rows[0].nMes)):0;};
-  const estimaFixosMes=m=>{const rows=fixosAno.filter(r=>r.nMes===m);if(isPastM(m))return rows.reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,year,m)),0);if(!rows.length)return fixoNomes.reduce((s,det)=>s+fixoUltimoValor(det),0);return fixoNomes.reduce((s,det)=>{const r=rows.find(row=>row.det===det);return s+(r?Math.abs(toDisplay(r.valor,r.moeda,year,m)):fixoUltimoValor(det));},0);};
-  const totalExpEstimado=m=>{if(isPastM(m))return totMesDisp(year,m);const fixEst=estimaFixosMes(m);const parcEst=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,year,m)),0);if(isCurM(m)){const actDiar=diarioDoMes(year,m).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,year,m)),0);const actParc=parcelasDoMes(year,m).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,year,m)),0);return fixEst+actParc+actDiar;}return fixEst+parcEst;};
+  const fixoUltimoValor=det=>{const rows=allData.filter(r=>r.tipo==='Despesa'&&r.cat==='Fixo'&&r.det===det).sort((a,b)=>b.ano*12+b.nMes-(a.ano*12+a.nMes));return rows.length?netAbsDisp(rows[0]):0;};
+  const estimaFixosMes=m=>{const rows=fixosAno.filter(r=>r.nMes===m);if(isPastM(m))return rows.reduce((s,r)=>s+netAbsDisp(r),0);if(!rows.length)return fixoNomes.reduce((s,det)=>s+fixoUltimoValor(det),0);return fixoNomes.reduce((s,det)=>{const r=rows.find(row=>row.det===det);return s+(r?netAbsDisp(r):fixoUltimoValor(det));},0);};
+  const totalExpEstimado=m=>{if(isPastM(m))return totMesDisp(year,m);const fixEst=estimaFixosMes(m);const parcEst=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+netAbsDisp(r),0);if(isCurM(m)){const actDiar=diarioDoMes(year,m).reduce((s,r)=>s+netAbsDisp(r),0);const actParc=parcelasDoMes(year,m).reduce((s,r)=>s+netAbsDisp(r),0);return fixEst+actParc+actDiar;}return fixEst+parcEst;};
   let anoRec=0,anoDesp=0;
   for(let m=1;m<=12;m++){if(hasDataM(m)){anoRec+=incomeForMonth(year,m);anoDesp+=totMesDisp(year,m);}}
   const anoEcon=anoRec>0?(anoRec-anoDesp)/anoRec:0;
@@ -1126,7 +1209,7 @@ function renderDiarioAnual(){
   fixoNomes.forEach((det,ri)=>{
     const alt=ri%2===1;const linhas=fixosAno.filter(r=>r.det===det);
     fixoGridInner+=`<div class="ay-lbl${alt?' ay-alt':''}" style="font-size:10px">${det}</div>`;
-    for(const m of mList){const row=linhas.find(r=>r.nMes===m);if(row){fixoGridInner+=`<div class="ay-cell${alt?' ay-alt':''}${isCurM(m)?' ay-cur':''}"><span class="ay-v">${fmtK(Math.abs(toDisplay(row.valor,row.moeda,year,m)))}</span></div>`;}else if(!isPastM(m)){const est=fixoUltimoValor(det);fixoGridInner+=`<div class="ay-cell${alt?' ay-alt':''}${isCurM(m)?' ay-cur':''}">${est>0?`<span class="ay-v" style="opacity:.4;font-style:italic">${fmtK(est)}</span>`:`<span class="ay-dash">—</span>`}</div>`;}else{fixoGridInner+=`<div class="ay-cell${alt?' ay-alt':''}"><span class="ay-dash">—</span></div>`;}}
+    for(const m of mList){const row=linhas.find(r=>r.nMes===m);if(row){fixoGridInner+=`<div class="ay-cell${alt?' ay-alt':''}${isCurM(m)?' ay-cur':''}"><span class="ay-v">${fmtK(netAbsDisp(row))}</span></div>`;}else if(!isPastM(m)){const est=fixoUltimoValor(det);fixoGridInner+=`<div class="ay-cell${alt?' ay-alt':''}${isCurM(m)?' ay-cur':''}">${est>0?`<span class="ay-v" style="opacity:.4;font-style:italic">${fmtK(est)}</span>`:`<span class="ay-dash">—</span>`}</div>`;}else{fixoGridInner+=`<div class="ay-cell${alt?' ay-alt':''}"><span class="ay-dash">—</span></div>`;}}
   });
   if(fixoNomes.length){fixoGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(232,223,192,.5)">Total</div>`;for(const m of mList){const tot=estimaFixosMes(m);const isEst=!isPastM(m)&&fixoNomes.some(d=>!fixosAno.find(r=>r.det===d&&r.nMes===m));fixoGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="background:rgba(232,223,192,.5)">${tot>0?`<span class="ay-v" style="font-weight:800${isEst?';opacity:.5;font-style:italic':''}">${fmtK(tot)}</span>`:`<span class="ay-dash">—</span>`}</div>`;}}
   const PBG=['rgba(94,127,68,.2)','rgba(232,130,30,.2)','rgba(61,79,53,.2)','rgba(122,155,92,.2)','rgba(181,146,90,.2)','rgba(192,57,43,.2)'];
@@ -1136,9 +1219,9 @@ function renderDiarioAnual(){
     const todas=allParcDB.filter(r=>r.det===det).sort((a,b)=>a.ano*12+a.nMes-(b.ano*12+b.nMes));
     const total=todas.length;const bg=PBG[ri%PBG.length],fg=PFG[ri%PFG.length];
     parcGridInner+=`<div class="ay-lbl" style="font-size:10px">${det}</div>`;
-    for(const m of mList){const row=todas.find(r=>r.ano===year&&r.nMes===m);if(row){const idx=todas.findIndex(r=>r.ano===year&&r.nMes===m);const num=idx>=0?idx+1:'?';parcGridInner+=`<div class="ay-cell" style="background:${bg};flex-direction:column;gap:1px"><span class="ay-gantt-num" style="color:${fg}">${num}/${total}</span><span style="font-size:7px;font-weight:600;color:${fg};opacity:.75;position:relative;z-index:1">${fmtK(Math.abs(toDisplay(row.valor,row.moeda,year,m)))}</span></div>`;}else{parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}"><span class="ay-dash" style="opacity:.15">·</span></div>`;}}
+    for(const m of mList){const row=todas.find(r=>r.ano===year&&r.nMes===m);if(row){const idx=todas.findIndex(r=>r.ano===year&&r.nMes===m);const num=idx>=0?idx+1:'?';parcGridInner+=`<div class="ay-cell" style="background:${bg};flex-direction:column;gap:1px"><span class="ay-gantt-num" style="color:${fg}">${num}/${total}</span><span style="font-size:7px;font-weight:600;color:${fg};opacity:.75;position:relative;z-index:1">${fmtK(netAbsDisp(row))}</span></div>`;}else{parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}"><span class="ay-dash" style="opacity:.15">·</span></div>`;}}
   });
-  if(parcNomes.length){parcGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(232,223,192,.45)">Total Parc.</div>`;for(const m of mList){const tot=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,year,m)),0);parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="background:rgba(232,223,192,.45)">${tot>0?`<span class="ay-v" style="font-weight:800">${fmtK(tot)}</span>`:`<span class="ay-dash">—</span>`}</div>`;}}
+  if(parcNomes.length){parcGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(232,223,192,.45)">Total Parc.</div>`;for(const m of mList){const tot=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+netAbsDisp(r),0);parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="background:rgba(232,223,192,.45)">${tot>0?`<span class="ay-v" style="font-weight:800">${fmtK(tot)}</span>`:`<span class="ay-dash">—</span>`}</div>`;}}
 
   // % Comprometido com Fixos + Parcelas
   if(fixoNomes.length||parcNomes.length){
@@ -1146,7 +1229,7 @@ function renderDiarioAnual(){
     for(const m of mList){
       const inc2=incomeForMonth(year,m);
       const fixTot2=estimaFixosMes(m);
-      const parcTot2=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,year,m)),0);
+      const parcTot2=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+netAbsDisp(r),0);
       const pct2=inc2>0?Math.round((fixTot2+parcTot2)/inc2*100):0;
       const hasV=(fixTot2+parcTot2)>0&&inc2>0;
       const col2=pct2>75?'var(--red)':pct2>50?'var(--orange)':'var(--dark)';
@@ -1170,17 +1253,21 @@ function renderDiarioAnual(){
         dc+=`<div class="${cls}"${hasSpend?` onclick="openDayModal('${iso}','${d} de ${MONTHS[m-1]}')" style="cursor:pointer"`:''} title="${d}/${m}"><span class="ay-hm-num ${numCls}">${d}</span></div>`;
       }else{dc+=`<div class="ay-hm-c ay-hm-fut"><span class="ay-hm-num dark">${d}</span></div>`;}
     }
-    const diarTot=diarioDoMes(year,m).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,year,m)),0);
+    const diarTot=diarioDoMes(year,m).reduce((s,r)=>s+netAbsDisp(r),0);
     hmHTML+=`<div class="ay-hm-month${isCurM(m)?' ay-hm-curm':''}"><div class="ay-hm-name">${MSHORT[m-1]}</div>${diarTot>0?`<div style="font-size:7px;font-weight:700;text-align:center;color:${diarTot>dailyLim*daysInMonth(year,m)?'var(--red)':'var(--mid)'};margin-bottom:2px">${fmtK(diarTot)}</div>`:''}<div class="ay-hm-days">${dc}</div></div>`;
   }
   hmHTML+=`</div><div class="ay-hm-leg"><span><span class="ay-hm-dot ay-hm-ok"></span>ok</span><span><span class="ay-hm-dot ay-hm-over"></span>alto</span><span><span class="ay-hm-dot ay-hm-none"></span>sem gasto</span></div>`;
   let runEcon=0;const econAcum={};
   for(let m=1;m<=12;m++){runEcon+=incomeForMonth(year,m)-totalExpEstimado(m);econAcum[m]=runEcon;}
+  const tSaldo=tipBtn('a_saldo','Saldo (anual)',`<div class="tip-formula">Saldo do mês = Receita do mês − Despesa total do mês</div><div class="tip-src">Receita: Cashflow tipo Receita (ou previsão da aba Planned para meses futuros). Despesa: gasto líquido real em meses passados; estimativa (fixos projetados + parcelas + dia a dia) no mês atual e futuros.</div>`);
+  const tDesp=tipBtn('a_desp','Despesa (anual)',`<div class="tip-formula">Meses passados: Σ gasto líquido real<br>Mês atual: fixos projetados + parcelas + dia a dia até hoje<br>Meses futuros: fixos projetados + parcelas registradas</div><div class="tip-src">Origem: Cashflow. Valores líquidos de reembolsos vinculados.</div>`);
+  const tEcA=tipBtn('a_eca','Economia acumulada',`<div class="tip-formula">Ec.Acum.(mês) = Σ saldos de Janeiro até o mês</div><div class="tip-src">Soma corrente dos saldos mensais (receita − despesa) do ano ${year}.</div>`);
+  const tPctE=tipBtn('a_pct','% Economia',`<div class="tip-formula">% Econ. = (Receita − Despesa) ÷ Receita</div><div class="tip-src">Verde quando ≥ 25%. Negativo indica gastos maiores que a receita no mês.</div>`);
   const indDefs=[
-    {label:'Saldo',alt:false,fn:m=>{const v=incomeForMonth(year,m)-totalExpEstimado(m);const est=isFutM(m);return`<span class="ay-v ${v>=0?'pos':'neg'}"${est?' style="opacity:.45;font-style:italic"':''}>${fmtK(v)}</span>`;} },
-    {label:'Despesa',alt:true,fn:m=>{const exp=totalExpEstimado(m);const est=isFutM(m);return`<span class="ay-v"${est?' style="opacity:.45;font-style:italic"':''}>${fmtK(exp)}</span>`;} },
-    {label:'Ec.Acum.',alt:false,fn:m=>{const v=econAcum[m];const est=isFutM(m);return`<span class="ay-v ${v>=0?'pos':'neg'}"${est?' style="opacity:.45;font-style:italic"':''}>${fmtK(v)}</span>`;} },
-    {label:'% Econ.',alt:true,fn:m=>{const inc=incomeForMonth(year,m),exp=totalExpEstimado(m);const pct=inc>0?(inc-exp)/inc:0;const est=isFutM(m);const pctR=Math.round(pct*100);const color=pctR>=25?'var(--mid)':'var(--red)';return`<span class="ay-v" style="color:${color}${est?';opacity:.45;font-style:italic':''}">${pctR}%</span>`;} },
+    {label:'Saldo'+tSaldo,alt:false,fn:m=>{const v=incomeForMonth(year,m)-totalExpEstimado(m);const est=isFutM(m);return`<span class="ay-v ${v>=0?'pos':'neg'}"${est?' style="opacity:.45;font-style:italic"':''}>${fmtK(v)}</span>`;} },
+    {label:'Despesa'+tDesp,alt:true,fn:m=>{const exp=totalExpEstimado(m);const est=isFutM(m);return`<span class="ay-v"${est?' style="opacity:.45;font-style:italic"':''}>${fmtK(exp)}</span>`;} },
+    {label:'Ec.Acum.'+tEcA,alt:false,fn:m=>{const v=econAcum[m];const est=isFutM(m);return`<span class="ay-v ${v>=0?'pos':'neg'}"${est?' style="opacity:.45;font-style:italic"':''}>${fmtK(v)}</span>`;} },
+    {label:'% Econ.'+tPctE,alt:true,fn:m=>{const inc=incomeForMonth(year,m),exp=totalExpEstimado(m);const pct=inc>0?(inc-exp)/inc:0;const est=isFutM(m);const pctR=Math.round(pct*100);const color=pctR>=25?'var(--mid)':'var(--red)';return`<span class="ay-v" style="color:${color}${est?';opacity:.45;font-style:italic':''}">${pctR}%</span>`;} },
   ];
   let indCells='';
   indDefs.forEach(({label,alt,fn})=>{indCells+=`<div class="ay-lbl${alt?' ay-alt':''}">${label}</div>`;for(const m of mList){indCells+=`<div class="ay-cell${alt?' ay-alt':''}${isCurM(m)?' ay-cur':''}">${fn(m)}</div>`;}});
@@ -1229,6 +1316,7 @@ function renderLancarForm(){
           <option value="transferencia_simples">Transferência simples</option>
           <option value="pagamento_cartao">Pagamento de cartão</option>
           <option value="cambio">Câmbio de moeda</option>
+          <option value="investimento">Investimento (aporte/resgate)</option>
         </select>
       </div>
       <div class="fi-row">
@@ -1238,6 +1326,21 @@ function renderLancarForm(){
       <div class="fg"><label class="fl">Data</label><input class="fi" id="l-data" type="date" value="${today}"></div>
       <div class="fg"><label class="fl">Descrição</label><input class="fi" id="l-desc" placeholder="Ex: Pagamento fatura Nubank"></div>
       <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="lancarTransferencia()">↔ Registrar transferência</button>`;
+  }else if(lancarType==='reembolso'){
+    card.innerHTML=`
+      <div class="fg"><label class="fl">Conta que recebeu o reembolso</label><select class="fs" id="l-conta">${accountOptions()}</select></div>
+      <div class="fi-row">
+        <div class="fg"><label class="fl">Valor</label><input class="fi" id="l-valor" type="number" step="0.01" placeholder="0,00"></div>
+        <div class="fg"><label class="fl">Data</label><input class="fi" id="l-data" type="date" value="${today}"></div>
+      </div>
+      <div class="fg"><label class="fl">Descrição</label><input class="fi" id="l-desc" placeholder="Ex: Reembolso Pilates"></div>
+      <div class="fg"><label class="fl">Vincular ao gasto original (obrigatório)</label>
+        <input class="fi" id="l-reemb-search" placeholder="Buscar gasto por descrição, categoria, conta..." oninput="updateReembTargets()" style="margin-bottom:6px">
+        <select class="fs" id="l-reemb-target"></select>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">Categoria e subcategoria são herdadas do gasto vinculado. O gasto passa a exibir o valor líquido.</div>
+      </div>
+      <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="lancarGasto()">Registrar reembolso</button>`;
+    updateReembTargets();
   }else{
     const showParcela=lancarType==='parcela';
     const showData=true;
@@ -1249,6 +1352,7 @@ function renderLancarForm(){
         <div class="fg"><label class="fl">Data</label><input class="fi" id="l-data" type="date" value="${today}"></div>
       </div>
       <div class="fg"><label class="fl">Descrição</label><input class="fi" id="l-desc" placeholder="${lancarType==='ajuste'?'Ex: Ajuste de saldo':'Ex: Almoço'}"></div>
+      ${lancarType==='receita'?`<div class="fg"><label class="fl">Categoria da receita</label><select class="fs" id="l-rec-cat"><option>Salário</option><option>Investimentos</option><option>Rendimentos</option><option>Outros</option></select><div style="font-size:10px;color:var(--muted);margin-top:3px">Rendimentos afetam só o saldo da conta — não contam como entrada do mês.</div></div>`:''}
       ${lancarType!=='receita'&&lancarType!=='ajuste'?`
       <div class="fi-row">
         <div class="fg">
@@ -1285,6 +1389,17 @@ function toggleAddSubL(){const w=document.getElementById('l-add-subcat-wrap');if
 function confirmAddCatL(){const name=document.getElementById('l-new-cat').value.trim();if(!name){toast('Informe o nome');return}const custom=getCustomCats();if(!custom[name])custom[name]=[];saveCustomCats(custom);renderLancarForm();toast('Categoria adicionada');}
 function confirmAddSubL(){const cat=document.getElementById('l-cat')?.value;if(!cat)return;const name=document.getElementById('l-new-subcat').value.trim();if(!name)return;const custom=getCustomCats();if(!custom[cat])custom[cat]=[];if(!custom[cat].includes(name))custom[cat].push(name);saveCustomCats(custom);updateSubcatsL();document.getElementById('l-subcat').value=name;toast('Subcat adicionada');}
 
+function reembTargetOptions(q){
+  q=(q||'').toLowerCase();
+  let cands=allData.filter(r=>isDespesa(r)).sort((a,b)=>(b.dataISO||'').localeCompare(a.dataISO||''));
+  if(q)cands=cands.filter(r=>(r.det+' '+r.cat+' '+r.subcat+' '+r.conta).toLowerCase().includes(q));
+  return cands.slice(0,50).map(r=>`<option value="${r._row}">${isoToBR(r.dataISO)} · ${r.det} · ${fmtV(Math.abs(r.valor),r.moeda,r.ano,r.nMes)} (${r.cat})</option>`).join('');
+}
+function updateReembTargets(){
+  const sel=document.getElementById('l-reemb-target');if(!sel)return;
+  sel.innerHTML='<option value="">— Selecione o gasto —</option>'+reembTargetOptions(document.getElementById('l-reemb-search')?.value);
+}
+
 function getMoedaConta(nomeOuSelect){
   const nome=typeof nomeOuSelect==='string'?nomeOuSelect:(nomeOuSelect?.value||'');
   const acct=accounts.find(a=>a.nome===nome);
@@ -1310,15 +1425,20 @@ async function lancarGasto(){
     await loadAllData();return;
   }
   if(lancarType==='reembolso'){
-    const cat2=document.getElementById('l-cat')?.value||'';
-    const sub2=document.getElementById('l-subcat')?.value||'';
-    await shAppend('Cashflow!A:J',[[valor,moeda,dataBR,desc,conta,'Reembolso',cat2,sub2,'',genId()]]);
-    toast('✓ Reembolso registrado!');
+    const targetRow=parseInt(document.getElementById('l-reemb-target')?.value||'');
+    const target=allData.find(r=>r._row===targetRow);
+    if(!target){toast('⚠ Selecione o gasto original');return}
+    if(moeda===target.moeda&&Math.abs(valor)>Math.abs(target.valor)){toast('⚠ Reembolso maior que o gasto original');return}
+    let targetId=target.id;
+    if(!targetId){targetId=genId();await shUpdate(`Cashflow!J${target._row}`,[[targetId]]);}
+    await shAppend('Cashflow!A:J',[[Math.abs(valor),moeda,dataBR,desc,conta,'Reembolso',target.cat,target.subcat,targetId,genId()]]);
+    toast('✓ Reembolso registrado e vinculado!');
     document.getElementById('l-valor').value='';document.getElementById('l-desc').value='';
     await loadAllData();return;
   }
   if(lancarType==='receita'){
-    await shAppend('Cashflow!A:J',[[valor,moeda,dataBR,desc,conta,'Receita','Receita','','',genId()]]);
+    const recCat=document.getElementById('l-rec-cat')?.value||'Salário';
+    await shAppend('Cashflow!A:J',[[valor,moeda,dataBR,desc,conta,'Receita',recCat,'','',genId()]]);
     toast('✓ Receita registrada!');
   }else if(lancarType==='parcela'){
     const n=parseInt(document.getElementById('l-nparcelas').value)||1;
@@ -1405,17 +1525,21 @@ function renderDashboard(){
 
   if(dashTab==='geral'){
     const monthKey=r=>`${r.ano}-${String(r.nMes).padStart(2,'0')}`;
-    const byMonth={};fd.forEach(r=>{const k=monthKey(r);byMonth[k]=(byMonth[k]||0)+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes));});
+    const byMonth={};fd.forEach(r=>{const k=monthKey(r);byMonth[k]=(byMonth[k]||0)+netAbsDisp(r);});
+    const reembLeg=applyDashFilters(reembolsos().filter(r=>!r.refId));
+    reembLeg.forEach(r=>{const k=monthKey(r);if(byMonth[k]!==undefined)byMonth[k]=Math.max(0,byMonth[k]-Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)));});
     const mKeys=Object.keys(byMonth).sort();
     const mLabels=mKeys.map(k=>{const[a,m]=k.split('-');return`${MSHORT[parseInt(m)-1]}/${String(a).slice(2)}`;});
     const mVals=mKeys.map(k=>byMonth[k]);
     const avgLine=Array(mKeys.length).fill(mVals.reduce((a,b)=>a+b,0)/(mVals.length||1));
-    const catTotals={};fd.forEach(r=>{catTotals[r.cat]=(catTotals[r.cat]||0)+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes));});
+    const catTotals={};fd.forEach(r=>{catTotals[r.cat]=(catTotals[r.cat]||0)+netAbsDisp(r);});
+    reembLeg.forEach(r=>{if(catTotals[r.cat]!==undefined)catTotals[r.cat]=Math.max(0,catTotals[r.cat]-Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)));});
     const sortedCats=Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
     const grandTotal=Object.values(catTotals).reduce((a,b)=>a+b,0);
     const histDesp=despesas();const nMonthsHist=[...new Set(histDesp.map(r=>`${r.ano}-${r.nMes}`))].length||1;
-    const catAvgTotals={};histDesp.forEach(r=>{catAvgTotals[r.cat]=(catAvgTotals[r.cat]||0)+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes));});
-    const grandAvgTotal=histDesp.reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
+    const catAvgTotals={};histDesp.forEach(r=>{catAvgTotals[r.cat]=(catAvgTotals[r.cat]||0)+netAbsDisp(r);});
+    reembolsos().filter(r=>!r.refId).forEach(r=>{if(catAvgTotals[r.cat]!==undefined)catAvgTotals[r.cat]=Math.max(0,catAvgTotals[r.cat]-Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)));});
+    const grandAvgTotal=Object.values(catAvgTotals).reduce((a,b)=>a+b,0);
     cont.innerHTML=`
       <div class="card"><div class="card-title">Gasto por mês</div><div class="chart-box tall"><canvas id="ch-mensal" style="cursor:pointer"></canvas></div></div>
       <div class="card"><div class="card-title">Por categoria</div>
@@ -1447,20 +1571,20 @@ const datalabelPlugin={id:'datalabels',afterDatasetsDraw(chart){
       ctx.textBaseline=di===0?'bottom':'top';
       const pos=el.getCenterPoint();
       const yOff=di===0?-4:4;
-      const label=Math.abs(val)>=1000?(val/1000).toFixed(1)+'k':Math.round(val).toString();
+      const label=Math.round(val).toLocaleString('pt-BR');
       if(di===0&&el.height>18)ctx.fillText(label,pos.x,pos.y+yOff);
       else if(di===1)ctx.fillText(label,pos.x,pos.y+yOff);
       ctx.restore();
     });
   });
 }};
-charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data:{labels:mLabels,datasets:[{label:'Gasto',data:mVals,backgroundColor:'#5E7F44',borderRadius:4},{label:'Média',data:avgLine,type:'line',borderColor:'#E8821E',borderDash:[5,3],borderWidth:2,pointRadius:0,fill:false}]},plugins:[datalabelPlugin],options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{family:'Inter',size:11}}}},scales:{y:{ticks:{callback:v=>`${displayCurrency==='EUR'?'€':'R$'}${(v/1000).toFixed(1)}k`,font:{family:'Inter',size:10}}}},onClick:(_,els)=>{if(!els.length)return;openMonthModal(mKeys[els[0].index],mLabels[els[0].index]);}}});
+charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data:{labels:mLabels,datasets:[{label:'Gasto',data:mVals,backgroundColor:'#5E7F44',borderRadius:4},{label:'Média',data:avgLine,type:'line',borderColor:'#E8821E',borderDash:[5,3],borderWidth:2,pointRadius:0,fill:false}]},plugins:[datalabelPlugin],options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{family:'Inter',size:11}}}},scales:{y:{ticks:{callback:v=>(displayCurrency==='EUR'?'€':'R$')+Math.round(v).toLocaleString('pt-BR'),font:{family:'Inter',size:10}}}},onClick:(_,els)=>{if(!els.length)return;openMonthModal(mKeys[els[0].index],mLabels[els[0].index]);}}});
     charts['donut']=new Chart(document.getElementById('ch-donut'),{type:'doughnut',data:{labels:sortedCats.map(([c])=>c),datasets:[{data:sortedCats.map(([,v])=>v),backgroundColor:sortedCats.map(([c])=>catCol[c]),borderWidth:2,borderColor:'#FDFAF4'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'65%',onClick:(_,els)=>{if(!els.length)return;openCatModal(sortedCats[els[0].index][0]);}}});
 
   }else if(dashTab==='superf'){
     const ms=monthsWithData();
     const labels=ms.map(m=>`${MSHORT[m.mes-1]}/${String(m.ano).slice(2)}`);
-    const getSubByMonth=sub=>ms.map(m=>despesas().filter(r=>r.subcat===sub&&r.ano===m.ano&&r.nMes===m.mes).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0));
+    const getSubByMonth=sub=>ms.map(m=>despesas().filter(r=>r.subcat===sub&&r.ano===m.ano&&r.nMes===m.mes).reduce((s,r)=>s+netAbsDisp(r),0));
     const uberData=getSubByMonth('Uber');const barData=getSubByMonth('Bar/Rolê');
     const uberAvg=uberData.reduce((a,b)=>a+b,0)/(uberData.length||1);
     const barAvg=barData.reduce((a,b)=>a+b,0)/(barData.length||1);
@@ -1505,12 +1629,12 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
         </table></div>
       </div>`;
     destroyChart('bal');
-    charts['bal']=new Chart(document.getElementById('ch-bal'),{type:'bar',data:{labels,datasets:[{data:balances,backgroundColor:balances.map(v=>v>=0?'#5E7F44':'#C0392B'),borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>`${displayCurrency==='EUR'?'€':'R$'}${(v/1000).toFixed(1)}k`,font:{family:'Inter',size:10}}}}}});
+    charts['bal']=new Chart(document.getElementById('ch-bal'),{type:'bar',data:{labels,datasets:[{data:balances,backgroundColor:balances.map(v=>v>=0?'#5E7F44':'#C0392B'),borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>(displayCurrency==='EUR'?'€':'R$')+Math.round(v).toLocaleString('pt-BR'),font:{family:'Inter',size:10}}}}}});
   }else if(dashTab==='investimentos'){
     var now2=new Date();var ny=now2.getFullYear(),nm=now2.getMonth()+1;
     var invAccts=accounts.filter(function(a){return a.status==='Ativo'&&a.tipo==='Investimento';});
     var opAccts=accounts.filter(function(a){return a.status==='Ativo'&&a.tipo!=='Investimento';});
-    function dispBal(a){return toDisplay(a.saldoInicial,a.moeda,ny,nm);}
+    function dispBal(a){return toDisplay(getAccountBalance(a.nome),a.moeda,ny,nm);}
     var totalInv=invAccts.reduce(function(s,a){return s+dispBal(a);},0);
     var totalOp=opAccts.reduce(function(s,a){return s+dispBal(a);},0);
     var totalRF=invAccts.filter(function(a){return a.rfRv==='RF';}).reduce(function(s,a){return s+dispBal(a);},0);
@@ -1607,8 +1731,9 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
       var bId2='inv_'+banco.replace(/[^a-zA-Z0-9]/g,'_');
       var opRows2='',invRows2='';
       accts2.filter(function(a){return a.tipo!=='Investimento';}).forEach(function(a){
+        var balOp=getAccountBalance(a.nome);
         opRows2+='<div class="bank-acct"><div><span style="font-weight:500">'+a.nome+'</span><span class="acct-badge">'+a.tipo+'</span></div>';
-        opRows2+='<span style="font-weight:700;color:'+(a.saldoInicial>=0?'var(--mid)':'var(--red)')+'">'+( a.moeda==='EUR'?fmtEUR(a.saldoInicial):fmtBRL(a.saldoInicial))+'</span></div>';
+        opRows2+='<span style="font-weight:700;color:'+(balOp>=0?'var(--mid)':'var(--red)')+'">'+( a.moeda==='EUR'?fmtEUR(balOp):fmtBRL(balOp))+'</span></div>';
       });
       accts2.filter(function(a){return a.tipo==='Investimento';}).forEach(function(a){
         var bal2=dispBal(a);
@@ -1619,7 +1744,7 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
         invRows2+='<div class="bank-acct" style="align-items:flex-start"><div style="flex:1"><div style="font-weight:500;font-size:13px">'+a.nome+'</div>';
         if(badges2)invRows2+='<div style="margin-top:4px;display:flex;gap:3px;flex-wrap:wrap">'+badges2+'</div>';
         invRows2+='</div><div style="text-align:right;margin-left:12px"><div style="font-weight:700;color:'+(bal2>=0?'var(--mid)':'var(--red)')+'">'+fmt(bal2)+'</div>';
-        if(a.moeda!==displayCurrency)invRows2+='<div style="font-size:10px;color:var(--muted)">'+(a.moeda==='EUR'?fmtEUR(a.saldoInicial):fmtBRL(a.saldoInicial))+'</div>';
+        if(a.moeda!==displayCurrency)invRows2+='<div style="font-size:10px;color:var(--muted)">'+(a.moeda==='EUR'?fmtEUR(getAccountBalance(a.nome)):fmtBRL(getAccountBalance(a.nome)))+'</div>';
         invRows2+='</div></div>';
       });
       var closeToggle="const b=document.getElementById('"+bId2+"');b.classList.toggle('open');this.querySelector('.bank-chev').textContent=b.classList.contains('open')?'v':'>'";
@@ -1700,7 +1825,7 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
           data:{labels:groupKeys,datasets:[{data:groupVals,backgroundColor:groupKeys.map(function(_,i){return barColors[i%barColors.length];}),borderRadius:6,borderSkipped:false}]},
           options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
             plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return' '+fmt(c.raw);}}}},
-            scales:{x:{ticks:{callback:function(v){return(displayCurrency==='EUR'?'€':'R$')+(v>=1000?(v/1000).toFixed(1)+'k':v);},font:{family:'Inter',size:10}},grid:{color:'rgba(0,0,0,.05)'}},y:{ticks:{font:{family:'Inter',size:11}}}}}
+            scales:{x:{ticks:{callback:function(v){return(displayCurrency==='EUR'?'€':'R$')+Math.round(v).toLocaleString('pt-BR');},font:{family:'Inter',size:10}},grid:{color:'rgba(0,0,0,.05)'}},y:{ticks:{font:{family:'Inter',size:11}}}}}
         });
       }
     }
@@ -1841,22 +1966,22 @@ function simBaseFixos(year,m){
   const t=new Date(),cy=t.getFullYear(),cm=t.getMonth()+1;
   const isPast=(year<cy)||(year===cy&&m<cm),isCur=(year===cy&&m===cm);
   const fixosData=allData.filter(r=>r.tipo==='Despesa'&&r.cat==='Fixo');
-  if(isPast)return fixosData.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,year,m)),0);
+  if(isPast)return fixosData.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+netAbsDisp(r),0);
   const byKey={};fixosData.forEach(r=>{const k=r.ano*12+r.nMes;if(!byKey[k])byKey[k]=new Set();byKey[k].add(r.det);});
   const curK=cy*12+cm;
   const pastKs=Object.keys(byKey).map(Number).filter(k=>k<curK);
   const lastK=pastKs.length?Math.max(...pastKs):null;
   const activeF=lastK?[...byKey[lastK]]:[...new Set(fixosData.map(r=>r.det))];
-  const ultiV=det=>{const rows=fixosData.filter(r=>r.det===det).sort((a,b)=>b.ano*12+b.nMes-(a.ano*12+a.nMes));return rows.length?Math.abs(toDisplay(rows[0].valor,rows[0].moeda,rows[0].ano,rows[0].nMes)):0;};
-  if(isCur){const rowsM=fixosData.filter(r=>r.ano===year&&r.nMes===m);return activeF.reduce((s,det)=>{const r=rowsM.find(x=>x.det===det);return s+(r?Math.abs(toDisplay(r.valor,r.moeda,year,m)):ultiV(det));},0);}
+  const ultiV=det=>{const rows=fixosData.filter(r=>r.det===det).sort((a,b)=>b.ano*12+b.nMes-(a.ano*12+a.nMes));return rows.length?netAbsDisp(rows[0]):0;};
+  if(isCur){const rowsM=fixosData.filter(r=>r.ano===year&&r.nMes===m);return activeF.reduce((s,det)=>{const r=rowsM.find(x=>x.det===det);return s+(r?netAbsDisp(r):ultiV(det));},0);}
   return activeF.reduce((s,det)=>s+ultiV(det),0);
 }
-function simBaseParcelas(year,m){return allData.filter(r=>r.tipo==='Parcela'&&r.ano===year&&r.nMes===m).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,year,m)),0);}
+function simBaseParcelas(year,m){return allData.filter(r=>r.tipo==='Parcela'&&r.ano===year&&r.nMes===m).reduce((s,r)=>s+netAbsDisp(r),0);}
 function simBaseDiario(year,m){
   const t=new Date(),cy=t.getFullYear(),cm=t.getMonth()+1;
   const isPast=(year<cy)||(year===cy&&m<cm),isCur=(year===cy&&m===cm);
-  if(isPast)return diarioDoMes(year,m).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,year,m)),0);
-  if(isCur){const act=diarioDoMes(year,m).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,year,m)),0);return act;}
+  if(isPast)return diarioDoMes(year,m).reduce((s,r)=>s+netAbsDisp(r),0);
+  if(isCur){const act=diarioDoMes(year,m).reduce((s,r)=>s+netAbsDisp(r),0);return act;}
   return 0;
 }
 function simItemActive(item,year,m){
@@ -2011,12 +2136,37 @@ function renderConfig(){
         <button class="btn-icon" style="background:rgba(192,57,43,.1);color:var(--red);margin-left:6px" onclick="planned.splice(${i},1);renderConfig()">✕</button>
       </div>`).join('');
   }else{cfgP.innerHTML='<div style="color:var(--muted);font-size:13px;padding:10px 0">Nenhum orçamento definido</div>';}
-  // Accounts
+  // Accounts — saldo inicial e data-base editáveis (marco zero por conta)
   const cfgA=document.getElementById('cfg-accounts');
+  const canBase=window._acctCols&&window._acctCols.dataBase>=0;
   cfgA.innerHTML=accounts.length?accounts.map(a=>{
     const bal=getAccountBalance(a.nome);
-    return`<div class="acct-row"><div><span style="font-weight:500">${a.nome}</span><span class="acct-badge">${a.tipo}</span><span class="acct-badge" style="background:${a.moeda==='EUR'?'rgba(61,79,53,.15)':'rgba(232,130,30,.15)'};color:${a.moeda==='EUR'?'var(--dark)':'var(--orange)'}">${a.moeda}</span>${a.status!=='Ativo'?`<span class="acct-badge" style="background:rgba(192,57,43,.1);color:var(--red)">inativa</span>`:''}</div><span style="font-weight:700;color:${bal>=0?'var(--mid)':'var(--red)'}">${a.moeda==='EUR'?fmtEUR(bal):fmtBRL(bal)}</span></div>`;
+    return`<div class="acct-row" style="flex-wrap:wrap;gap:6px">
+      <div style="flex:1;min-width:150px">
+        <span style="font-weight:500">${a.nome}</span><span class="acct-badge">${a.tipo}</span><span class="acct-badge" style="background:${a.moeda==='EUR'?'rgba(61,79,53,.15)':'rgba(232,130,30,.15)'};color:${a.moeda==='EUR'?'var(--dark)':'var(--orange)'}">${a.moeda}</span>${a.status!=='Ativo'?`<span class="acct-badge" style="background:rgba(192,57,43,.1);color:var(--red)">inativa</span>`:''}
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Saldo atual: <b style="color:${bal>=0?'var(--mid)':'var(--red)'}">${a.moeda==='EUR'?fmtEUR(bal):fmtBRL(bal)}</b></div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <div><div style="font-size:9px;color:var(--muted);font-weight:600;text-transform:uppercase">Saldo inicial</div><input class="cfg-input" type="number" step="0.01" id="cfg-saldo-${a._row}" value="${a.saldoInicial}"></div>
+        ${canBase?`<div><div style="font-size:9px;color:var(--muted);font-weight:600;text-transform:uppercase">Data-base</div><input class="fi" type="date" style="width:145px;padding:6px 8px;font-size:12px" id="cfg-base-${a._row}" value="${a.dataBase||''}"></div>`:''}
+        <button class="btn btn-sm btn-outline" style="align-self:flex-end" onclick="saveAcctBase(${a._row})">Salvar</button>
+      </div>
+    </div>`;
   }).join(''):'<div style="color:var(--muted);font-size:13px;padding:10px 0">Nenhuma conta — configure a aba Accounts no Sheets.</div>';
+}
+
+const colLetter=i=>String.fromCharCode(65+i);
+async function saveAcctBase(row){
+  const saldoEl=document.getElementById('cfg-saldo-'+row);
+  const baseEl=document.getElementById('cfg-base-'+row);
+  if(!saldoEl||!window._acctCols||window._acctCols.saldo<0){toast('⚠ Coluna de saldo não encontrada');return}
+  const saldo=parseFloat(saldoEl.value)||0;
+  await shUpdate(`Accounts!${colLetter(window._acctCols.saldo)}${row}`,[[saldo]]);
+  if(baseEl&&window._acctCols.dataBase>=0&&baseEl.value){
+    await shUpdate(`Accounts!${colLetter(window._acctCols.dataBase)}${row}`,[[isoToBR(baseEl.value)]]);
+  }
+  toast('✓ Conta atualizada');
+  await loadAllData();renderConfig();
 }
 
 function addPlannedField(){
