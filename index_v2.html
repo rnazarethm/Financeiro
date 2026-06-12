@@ -53,7 +53,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .hdr-btn{background:var(--bg);border:none;color:var(--text);padding:6px 11px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;font-family:'Inter',sans-serif}
 .hdr-btn:hover{background:var(--separator)}
 .hdr-btn.cur-active{background:var(--dark);color:#fff}
-.content{padding:16px;padding-bottom:80px;max-width:860px;margin:0 auto}
+.content{padding:16px 24px;padding-bottom:80px;max-width:1320px;margin:0 auto}
+@media(min-width:701px) and (max-width:1000px){.content{padding:16px}}
 .screen{display:none}.screen.active{display:block}
 .bnav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);display:flex;z-index:100}
 .nitem{flex:1;display:flex;flex-direction:column;align-items:center;padding:7px 4px;cursor:pointer;color:var(--muted);font-size:10px;font-weight:600;gap:2px;border:none;background:transparent;font-family:'Inter',sans-serif;transition:color .15s}
@@ -102,7 +103,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .cal-val{font-size:11px;opacity:.85;margin-top:3px;font-weight:600}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:200;display:flex;align-items:flex-end;justify-content:center}
 .modal-overlay.hidden{display:none}
-.modal{background:var(--card);border-radius:16px 16px 0 0;width:100%;max-width:860px;padding:20px;max-height:75vh;overflow-y:auto}
+.modal{background:var(--card);border-radius:16px 16px 0 0;width:100%;max-width:980px;padding:20px;max-height:75vh;overflow-y:auto}
 .modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px}
 .modal-title{font-size:16px;font-weight:700;margin-bottom:14px;color:var(--dark)}
 .modal-item{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)}
@@ -304,7 +305,7 @@ table.data tr:last-child td{border-bottom:none}
 /* ── INFO TIP (transparência dos cálculos) ──────────── */
 .tip-btn{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(0,0,0,.08);color:var(--muted);font-size:9px;font-weight:700;cursor:pointer;margin-left:5px;vertical-align:middle;user-select:none;font-style:italic;font-family:Georgia,serif;flex-shrink:0}
 .tip-btn:hover{background:var(--dark);color:#fff}
-.ovw-item.accent .tip-btn{background:rgba(255,255,255,.25);color:#fff}
+.ovw-item.accent .tip-btn,.sum-item.accent .tip-btn{background:rgba(255,255,255,.25);color:#fff}
 .tip-formula{background:var(--cream);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:12px;color:var(--dark);margin:8px 0}
 .tip-src{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5}
 
@@ -1531,7 +1532,6 @@ function renderDashboard(){
     const mKeys=Object.keys(byMonth).sort();
     const mLabels=mKeys.map(k=>{const[a,m]=k.split('-');return`${MSHORT[parseInt(m)-1]}/${String(a).slice(2)}`;});
     const mVals=mKeys.map(k=>byMonth[k]);
-    const avgLine=Array(mKeys.length).fill(mVals.reduce((a,b)=>a+b,0)/(mVals.length||1));
     const catTotals={};fd.forEach(r=>{catTotals[r.cat]=(catTotals[r.cat]||0)+netAbsDisp(r);});
     reembLeg.forEach(r=>{if(catTotals[r.cat]!==undefined)catTotals[r.cat]=Math.max(0,catTotals[r.cat]-Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)));});
     const sortedCats=Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
@@ -1548,11 +1548,11 @@ function renderDashboard(){
           <div style="overflow-y:auto;max-height:220px">${sortedCats.map(([c,v])=>`<div onclick="openCatModal('${c}')" style="display:flex;align-items:center;gap:6px;margin-bottom:7px;font-size:12px;cursor:pointer;padding:3px 4px;border-radius:5px" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''"><div style="width:9px;height:9px;border-radius:50%;background:${catCol[c]};flex-shrink:0"></div><div style="flex:1">${c}</div><div style="font-weight:600">${Math.round(v/grandTotal*100)}%</div></div>`).join('')}</div>
         </div>
       </div>
-      <div class="card"><div class="card-title">Médias mensais por categoria</div>
+      <div class="card"><div class="card-title">Média mensal por categoria ${tipBtn('d_avg','Média mensal por categoria',`<div class="tip-formula">Média = Σ gasto líquido da categoria ÷ nº de meses com dados (${nMonthsHist})</div><div class="tip-src">Origem: Cashflow, todo o histórico (sem filtros), líquido de reembolsos. Clique na linha para ver os lançamentos.</div>`)}</div>
         <div class="tbl-wrap"><table class="data">
-          <tr><th>Categoria</th><th style="text-align:right">Média/mês</th><th style="text-align:right">Total</th><th style="text-align:right">%</th></tr>
-          ${sortedCats.map(([c,v])=>`<tr onclick="openCatModal('${c}')" style="cursor:pointer"><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${catCol[c]};margin-right:7px"></span>${c}</td><td class="td-r">${fmt((catAvgTotals[c]||0)/nMonthsHist)}</td><td class="td-r">${fmt(v)}</td><td class="td-r">${Math.round(v/grandTotal*100)}%</td></tr>`).join('')}
-          <tr style="font-weight:700;border-top:2px solid var(--border)"><td>Total</td><td class="td-r">${fmt(grandAvgTotal/nMonthsHist)}</td><td class="td-r">${fmt(grandTotal)}</td><td class="td-r">100%</td></tr>
+          <tr><th>Categoria</th><th style="text-align:right">Média mensal</th></tr>
+          ${sortedCats.map(([c])=>`<tr onclick="openCatModal('${c}')" style="cursor:pointer"><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${catCol[c]};margin-right:7px"></span>${c}</td><td class="td-r">${fmt((catAvgTotals[c]||0)/nMonthsHist)}</td></tr>`).join('')}
+          <tr style="font-weight:700;border-top:2px solid var(--border)"><td>Total</td><td class="td-r">${fmt(grandAvgTotal/nMonthsHist)}</td></tr>
         </table></div>
       </div>`;
     destroyChart('mensal');destroyChart('donut');
@@ -1578,7 +1578,7 @@ const datalabelPlugin={id:'datalabels',afterDatasetsDraw(chart){
     });
   });
 }};
-charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data:{labels:mLabels,datasets:[{label:'Gasto',data:mVals,backgroundColor:'#5E7F44',borderRadius:4},{label:'Média',data:avgLine,type:'line',borderColor:'#E8821E',borderDash:[5,3],borderWidth:2,pointRadius:0,fill:false}]},plugins:[datalabelPlugin],options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{family:'Inter',size:11}}}},scales:{y:{ticks:{callback:v=>(displayCurrency==='EUR'?'€':'R$')+Math.round(v).toLocaleString('pt-BR'),font:{family:'Inter',size:10}}}},onClick:(_,els)=>{if(!els.length)return;openMonthModal(mKeys[els[0].index],mLabels[els[0].index]);}}});
+charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data:{labels:mLabels,datasets:[{label:'Gasto',data:mVals,backgroundColor:'#5E7F44',borderRadius:4}]},plugins:[datalabelPlugin],options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>(displayCurrency==='EUR'?'€':'R$')+Math.round(v).toLocaleString('pt-BR'),font:{family:'Inter',size:10}}}},onClick:(_,els)=>{if(!els.length)return;openMonthModal(mKeys[els[0].index],mLabels[els[0].index]);}}});
     charts['donut']=new Chart(document.getElementById('ch-donut'),{type:'doughnut',data:{labels:sortedCats.map(([c])=>c),datasets:[{data:sortedCats.map(([,v])=>v),backgroundColor:sortedCats.map(([c])=>catCol[c]),borderWidth:2,borderColor:'#FDFAF4'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'65%',onClick:(_,els)=>{if(!els.length)return;openCatModal(sortedCats[els[0].index][0]);}}});
 
   }else if(dashTab==='superf'){
@@ -1593,8 +1593,8 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
       <div class="card"><div class="card-title">Bar / Rolê — média: ${fmt(barAvg)}/mês</div><div class="chart-box"><canvas id="ch-bar"></canvas></div></div>`;
     destroyChart('uber');destroyChart('bar');
     const mkOpts=()=>({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>`${displayCurrency==='EUR'?'€':'R$'}${v}`,font:{family:'Inter',size:10}}}}});
-    charts['uber']=new Chart(document.getElementById('ch-uber'),{type:'bar',data:{labels,datasets:[{label:'Uber',data:uberData,backgroundColor:uberData.map(v=>v>uberAvg?'#C0392B':'#3D4F35'),borderRadius:3}]},options:mkOpts()});
-    charts['bar']=new Chart(document.getElementById('ch-bar'),{type:'bar',data:{labels,datasets:[{label:'Bar/Rolê',data:barData,backgroundColor:barData.map(v=>v>barAvg?'#C0392B':'#E8821E'),borderRadius:3}]},options:mkOpts()});
+    charts['uber']=new Chart(document.getElementById('ch-uber'),{type:'bar',data:{labels,datasets:[{label:'Uber',data:uberData,backgroundColor:uberData.map(v=>v>uberAvg?'#C0392B':'#3D4F35'),borderRadius:3}]},options:Object.assign(mkOpts(),{onClick:(_,els)=>{if(!els.length)return;const m=ms[els[0].index];openSubcatMonthModal('Uber',m.ano,m.mes);}})});
+    charts['bar']=new Chart(document.getElementById('ch-bar'),{type:'bar',data:{labels,datasets:[{label:'Bar/Rolê',data:barData,backgroundColor:barData.map(v=>v>barAvg?'#C0392B':'#E8821E'),borderRadius:3}]},options:Object.assign(mkOpts(),{onClick:(_,els)=>{if(!els.length)return;const m=ms[els[0].index];openSubcatMonthModal('Bar/Rolê',m.ano,m.mes);}})});
 
   }else if(dashTab==='balanco'){
     const ms=monthsWithData();
@@ -1605,15 +1605,33 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
     const avgBal=balances.reduce((a,b)=>a+b,0)/(balances.length||1);
     const tblMs=ms.filter(m=>{if(balFilters.ano&&m.ano!==parseInt(balFilters.ano))return false;if(balFilters.mes&&m.mes!==parseInt(balFilters.mes))return false;return true;});
     const balAnos=[...new Set(ms.map(m=>m.ano))].sort();
-    // Accounts summary
-    const acctRows=accounts.filter(a=>a.status==='Ativo').map(a=>{const bal=getAccountBalance(a.nome);const balDisp=toDisplay(bal,a.moeda,new Date().getFullYear(),new Date().getMonth()+1);return`<div class="acct-row"><div><span style="font-weight:500">${a.nome}</span><span class="acct-badge">${a.tipo}</span><span class="acct-badge" style="background:${a.moeda==='EUR'?'rgba(61,79,53,.15)':'rgba(232,130,30,.15)'};color:${a.moeda==='EUR'?'var(--dark)':'var(--orange)'}">${a.moeda}</span></div><span style="font-weight:700;color:${balDisp>=0?'var(--mid)':'var(--red)'}">${fmtV(bal,a.moeda,new Date().getFullYear(),new Date().getMonth()+1)}</span></div>`;}).join('');
+    // Accounts agrupadas: Correntes / Cartões / Investimentos / Reservas / Outras
+    const nowY=new Date().getFullYear(),nowM=new Date().getMonth()+1;
+    const activeAcc=accounts.filter(a=>a.status==='Ativo');
+    const acctGroups=[
+      {nome:'Contas Correntes',list:activeAcc.filter(a=>a.tipo==='Corrente')},
+      {nome:'Cartões',list:activeAcc.filter(a=>a.tipo==='Cartão')},
+      {nome:'Investimentos',list:activeAcc.filter(a=>a.tipo==='Investimento'&&a.temporalidade!=='Reserva de Emergência')},
+      {nome:'Reservas',list:activeAcc.filter(a=>a.tipo==='Investimento'&&a.temporalidade==='Reserva de Emergência')},
+      {nome:'Outras',list:activeAcc.filter(a=>!['Corrente','Cartão','Investimento'].includes(a.tipo))}
+    ].filter(g=>g.list.length);
+    const acctRows=acctGroups.map((g,gi)=>{
+      const tot=g.list.reduce((s,a)=>s+toDisplay(getAccountBalance(a.nome),a.moeda,nowY,nowM),0);
+      const gId='balgrp_'+gi;
+      const rows=g.list.map(a=>{const bal=getAccountBalance(a.nome);return`<div class="bank-acct"><div><span style="font-weight:500">${a.nome}</span><span class="acct-badge">${a.moeda}</span></div><span style="font-weight:700;color:${bal>=0?'var(--mid)':'var(--red)'}">${fmtV(bal,a.moeda,nowY,nowM)}</span></div>`;}).join('');
+      return`<div class="bank-card"><div class="bank-card-hdr" onclick="const b=document.getElementById('${gId}');b.classList.toggle('open');this.querySelector('.bank-chev').textContent=b.classList.contains('open')?'∨':'›'"><div><div class="bank-name">${g.nome}</div><div class="bank-sub">${g.list.length} conta${g.list.length!==1?'s':''}</div></div><div style="display:flex;align-items:center"><div class="bank-total" style="color:${tot>=0?'var(--mid)':'var(--red)'}">${fmtN(tot)}</div><div class="bank-chev">›</div></div></div><div class="bank-body" id="${gId}">${rows}</div></div>`;
+    }).join('');
+    const totIncAll=msData.reduce((s,d)=>s+d.inc,0);
+    const totExpAll=msData.reduce((s,d)=>s+d.exp,0);
+    const taxaEco=totIncAll>0?(totIncAll-totExpAll)/totIncAll:null;
 
     cont.innerHTML=`
-      <div class="sum-grid" style="margin-bottom:12px">
-        <div class="sum-item accent"><div class="sum-label">Patrimônio total</div><div class="sum-val">${fmtK(patrimTotal)}</div></div>
-        <div class="sum-item"><div class="sum-label">Média mensal</div><div class="sum-val ${avgBal>=0?'pos':'neg'}">${fmtK(avgBal)}</div></div>
+      <div class="sum-grid-3" style="margin-bottom:12px">
+        <div class="sum-item accent"><div class="sum-label">Patrimônio total${tipBtn('b_pat','Patrimônio total',`<div class="tip-formula">Patrimônio = Σ saldo das contas ativas</div><div>${fmt(patrimTotal)}</div><div class="tip-src">Saldo de cada conta = saldo inicial (na data-base) + movimentações desde a data-base. Origem: abas Accounts e Cashflow. Convertido para a moeda de exibição.</div>`)}</div><div class="sum-val">${fmtN(patrimTotal)}</div></div>
+        <div class="sum-item"><div class="sum-label">Média mensal${tipBtn('b_avg','Média mensal',`<div class="tip-formula">Média = Σ (entradas − saídas) ÷ ${balances.length} meses</div><div>${fmt(avgBal)}</div><div class="tip-src">Meses com dados de despesa. Entradas: Cashflow tipo Receita (exclui Rendimentos). Saídas: gasto líquido do mês.</div>`)}</div><div class="sum-val ${avgBal>=0?'pos':'neg'}">${fmtN(avgBal)}</div></div>
+        <div class="sum-item"><div class="sum-label">Taxa de economia${tipBtn('b_tx','Taxa de Economia',`<div class="tip-formula">Taxa = Economia ÷ Entradas<br>(${fmt(totIncAll-totExpAll)}) ÷ ${fmt(totIncAll)} = ${taxaEco===null?'—':Math.round(taxaEco*100)+'%'}</div><div class="tip-src">Todo o histórico com dados. Negativa quando os gastos superam as receitas.</div>`)}</div><div class="sum-val ${taxaEco!==null&&taxaEco<0?'neg':'pos'}">${taxaEco===null?'—':Math.round(taxaEco*100)+'%'}</div></div>
       </div>
-      ${acctRows?`<div class="card"><div class="card-title">Saldo por conta</div>${acctRows}</div>`:''}
+      ${acctRows?`<div style="margin-bottom:14px"><div class="card-title" style="margin-bottom:8px">Saldo por conta</div>${acctRows}</div>`:''}
       <div class="card"><div class="card-title">Balanço mensal</div><div class="chart-box"><canvas id="ch-bal"></canvas></div></div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -1656,7 +1674,7 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
     var allocTemp=window._allocTemp||'';
     var allocInv=allocTemp?invAccts.filter(function(a){return a.temporalidade===allocTemp;}):invAccts;
     var uniqTempsAlloc=[...new Set(invAccts.map(function(a){return a.temporalidade;}).filter(Boolean))].sort();
-    var allocIdeals=JSON.parse(localStorage.getItem('inv_alloc_ideals')||'{}');
+    var allocIdeals=appConfig['inv_alloc_ideals']?JSON.parse(appConfig['inv_alloc_ideals']):JSON.parse(localStorage.getItem('inv_alloc_ideals')||'{}');
     function aIdeal(k){return allocIdeals[k]||0;}
     function aSum(fn){return allocInv.filter(fn).reduce(function(s,a){return s+dispBal(a);},0);}
     var brIPCA_RF=aSum(function(a){return a.brExt==='BR'&&/IPCA/i.test(a.subtipo||'')&&a.rfRv==='RF';});
@@ -1706,8 +1724,27 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
       +'<th style="border-left:2px solid var(--border)">Valor</th><th>% Atual</th><th>% Ideal</th>'
       +'</tr></thead>'
       +'<tbody>'
-      +allocRow('BR','br','IPCA','ipca',brIPCA_RF,brIPCA_RV)
-      +allocRow('BR','br','Selic/CDI','cdi',brCDI_RF,brCDI_RV)
+      +(function(){
+        var brRV=brIPCA_RV+brCDI_RV;
+        var totalBRall=brIPCA_RF+brCDI_RF+brRV;
+        var p1=aPct(brIPCA_RF),p2=aPct(brCDI_RF),pRV=aPct(brRV);
+        return '<tr>'
+          +'<td class="region" rowspan="2">BR</td>'
+          +'<td class="subtipo">IPCA</td>'
+          +'<td class="num">'+fmt(brIPCA_RF)+'</td>'
+          +'<td class="num" style="'+aDiff(p1,aIdeal('alloc_br_ipca_rf'))+'">'+p1+'%</td>'
+          +'<td class="num">'+aIdealInput('alloc_br_ipca_rf')+'</td>'
+          +'<td class="num" rowspan="2" style="border-left:2px solid var(--border)">'+fmt(brRV)+'</td>'
+          +'<td class="num" rowspan="2" style="'+aDiff(pRV,aIdeal('alloc_br_rv'))+'">'+pRV+'%</td>'
+          +'<td class="num" rowspan="2">'+aIdealInput('alloc_br_rv')+'</td>'
+          +'<td class="num" rowspan="2" style="border-left:2px solid var(--border);font-weight:600">'+fmt(totalBRall)+'</td>'
+          +'</tr><tr>'
+          +'<td class="subtipo">Selic/CDI</td>'
+          +'<td class="num">'+fmt(brCDI_RF)+'</td>'
+          +'<td class="num" style="'+aDiff(p2,aIdeal('alloc_br_cdi_rf'))+'">'+p2+'%</td>'
+          +'<td class="num">'+aIdealInput('alloc_br_cdi_rf')+'</td>'
+          +'</tr>';
+      })()
       +allocRow('EXT','ext','Internacional','ext',ext_RF,ext_RV)
       +'<tr class="total-row">'
       +'<td colspan="2" style="font-weight:700;font-size:11px">Total</td>'
@@ -1791,15 +1828,12 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
       return '<tr><td style="font-weight:500">'+a.nome+'</td><td class="td-muted">'+(a.banco||'—')+'</td><td>'+subBadge+'</td><td>'+rfBadge+'</td><td class="td-muted" style="font-size:11px">'+(a.temporalidade||'—')+'</td><td class="td-muted" style="font-size:11px">'+(a.objetivo||'—')+'</td><td class="td-r">'+fmt(bal2)+'</td></tr>';
     }).join('');
 
-    cont.innerHTML='<div class="sum-grid-3" style="margin-bottom:8px">'
-      +'<div class="sum-item accent"><div class="sum-label">Total investido</div><div class="sum-val">'+fmtK(totalInv)+'</div></div>'
-      +'<div class="sum-item"><div class="sum-label">RF</div><div class="sum-val pos">'+fmtK(totalRF)+'</div></div>'
-      +'<div class="sum-item"><div class="sum-label">RV</div><div class="sum-val ora">'+fmtK(totalRV)+'</div></div>'
-      +'</div>'
-      +'<div class="sum-grid-3" style="margin-bottom:16px">'
-      +'<div class="sum-item"><div class="sum-label">Brasil</div><div class="sum-val">'+fmtK(totalBR)+'</div></div>'
-      +'<div class="sum-item"><div class="sum-label">Exterior</div><div class="sum-val">'+fmtK(totalEXT)+'</div></div>'
-      +'<div class="sum-item"><div class="sum-label">Contas operac.</div><div class="sum-val">'+fmtK(totalOp)+'</div></div>'
+    var aporteM=aporteMensal(ny,nm);
+    var tipInv=tipBtn('i_tot','Total investido','<div class="tip-formula">Total = Σ saldo das contas tipo Investimento ativas</div><div>'+fmt(totalInv)+'</div><div class="tip-src">Saldo = saldo inicial (data-base) + aportes/resgates + rendimentos lançados. Origem: Accounts + Cashflow.</div>');
+    var tipAp=tipBtn('i_apt','Aporte mensal','<div class="tip-formula">Aporte = Σ transferências subtipo Investimento em '+MONTHS[nm-1]+'</div><div>'+fmt(aporteM)+'</div><div class="tip-src">Pernas de crédito em contas de Investimento. Só considera aportes registrados com o subtipo Investimento (a partir desta versão).</div>');
+    cont.innerHTML='<div class="sum-grid" style="margin-bottom:16px;grid-template-columns:1fr 1fr">'
+      +'<div class="sum-item accent"><div class="sum-label">Total investido'+tipInv+'</div><div class="sum-val">'+fmtN(totalInv)+'</div></div>'
+      +'<div class="sum-item"><div class="sum-label">Aporte mensal'+tipAp+'</div><div class="sum-val pos">'+fmtN(aporteM)+'</div></div>'
       +'</div>'
       +allocTableHTML
       +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div class="card-title" style="margin-bottom:0">Alocação por</div><div style="display:flex;gap:5px;flex-wrap:wrap">'+['Banco','Subtipo','Temporalidade','Objetivo'].map(groupBtn).join('')+'</div></div>'
@@ -1840,16 +1874,23 @@ function toggleBankCard(id){
   if(hdr){const arr=hdr.querySelector('span:last-child');if(arr)arr.textContent=el.classList.contains('open')?'∨':'›';}
 }
 function openDashModal(title,items){
-  const total=items.filter(r=>isDespesa(r)).reduce((s,r)=>s+Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes)),0);
+  const total=items.filter(r=>isDespesa(r)).reduce((s,r)=>s+netAbsDisp(r),0);
   items=[...items].sort((a,b)=>Math.abs(b.valor)-Math.abs(a.valor));
   document.getElementById('dash-modal-title').textContent=title;
   document.getElementById('dash-modal-total').textContent=fmt(total);
-  document.getElementById('dash-modal-body').innerHTML=items.length?`<div class="tbl-wrap"><table class="data"><tr><th>Data</th><th>Descrição</th><th>Cat.</th><th>Conta</th><th style="text-align:right">Valor</th></tr>${items.map(r=>`<tr><td class="td-muted">${r.dataISO||'—'}</td><td>${r.det}</td><td>${r.cat||'—'}</td><td class="td-muted">${r.conta||'—'}</td><td class="td-r">${fmtV(Math.abs(r.valor),r.moeda,r.ano,r.nMes)}</td></tr>`).join('')}</table></div>`:'<p style="color:var(--muted);padding:10px 0">Sem lançamentos</p>';
+  const valCell=r=>{
+    const bruto=Math.abs(toDisplay(r.valor,r.moeda,r.ano,r.nMes));
+    const net=isDespesa(r)?netAbsDisp(r):bruto;
+    if(net<bruto)return`<span style="text-decoration:line-through;color:var(--muted);font-size:11px">${fmt(bruto)}</span> <b>${fmt(net)}</b><div style="font-size:9px;color:var(--orange)">reembolsado</div>`;
+    return fmtV(Math.abs(r.valor),r.moeda,r.ano,r.nMes);
+  };
+  document.getElementById('dash-modal-body').innerHTML=items.length?`<div class="tbl-wrap"><table class="data"><tr><th>Data</th><th>Descrição</th><th>Cat.</th><th>Conta</th><th style="text-align:right">Valor</th></tr>${items.map(r=>`<tr><td class="td-muted">${r.dataISO||'—'}</td><td>${r.det}</td><td>${r.cat||'—'}</td><td class="td-muted">${r.conta||'—'}</td><td class="td-r">${valCell(r)}</td></tr>`).join('')}</table></div>`:'<p style="color:var(--muted);padding:10px 0">Sem lançamentos</p>';
   document.getElementById('dash-modal').classList.remove('hidden');
 }
 function closeDashModal(e){if(e.target===document.getElementById('dash-modal'))document.getElementById('dash-modal').classList.add('hidden');}
 function openMonthModal(key,label){const[a,m]=key.split('-').map(Number);openDashModal(`${MONTHS[m-1]} ${a}`,despesas().filter(r=>r.ano===a&&r.nMes===m));}
 function openCatModal(cat){openDashModal(cat,filteredDespesas().filter(r=>r.cat===cat));}
+function openSubcatMonthModal(sub,ano,mes){openDashModal(`${sub} — ${MONTHS[mes-1]} ${ano}`,despesas().filter(r=>r.subcat===sub&&r.ano===ano&&r.nMes===mes));}
 // ══════════════════════════════════════════════════════
 // SCREEN: LANÇAMENTOS
 // ══════════════════════════════════════════════════════
@@ -1906,7 +1947,13 @@ function renderLancamentos(){
     </tr>`).join('')}${data.length>200?`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:12px">Mostrando 200 de ${data.length}. Refine os filtros.</td></tr>`:''}</tbody>`;
 }
 function sortLt(col){ltSort={col,dir:ltSort.col===col?-ltSort.dir:1};renderLancamentos();}
-function saveAllocIdeal(k,v){var d=JSON.parse(localStorage.getItem('inv_alloc_ideals')||'{}');d[k]=parseFloat(v)||0;localStorage.setItem('inv_alloc_ideals',JSON.stringify(d));}
+async function saveAllocIdeal(k,v){
+  var d=appConfig['inv_alloc_ideals']?JSON.parse(appConfig['inv_alloc_ideals']):JSON.parse(localStorage.getItem('inv_alloc_ideals')||'{}');
+  d[k]=parseFloat(v)||0;
+  localStorage.setItem('inv_alloc_ideals',JSON.stringify(d));
+  await saveConfigKey('inv_alloc_ideals',JSON.stringify(d));
+  toast('✓ % ideal salvo');
+}
 
 let _editRow=null;
 function editLancamento(row){
