@@ -612,13 +612,70 @@ async function shUpdate(range,values){
 async function shClear(range){
   await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${APP.spreadsheetId}/values/${encodeURIComponent(range)}:clear`,{method:'POST',headers:{Authorization:`Bearer ${token}`}});
 }
+async function shMeta(){
+  const r=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${APP.spreadsheetId}?fields=sheets.properties.title`,{headers:{Authorization:`Bearer ${token}`}});
+  if(r.status===401){clearToken();showLogin();toast('Sessão expirada');throw new Error('401')}
+  const j=await r.json();
+  return(j.sheets||[]).map(s=>s.properties.title);
+}
+async function shAddSheet(title){
+  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${APP.spreadsheetId}:batchUpdate`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({requests:[{addSheet:{properties:{title}}}]})});
+}
+
+// ══════════════════════════════════════════════════════
+// SCHEMA v2.1 — RefId/Id no Cashflow, DataBase no Accounts, aba Config
+// ══════════════════════════════════════════════════════
+function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+let _schemaOk=false;
+async function ensureSchema(){
+  if(_schemaOk)return;
+  try{
+    // 1. Aba Config (chave|valor)
+    const titles=await shMeta();
+    if(!titles.includes('Config')){
+      await shAddSheet('Config');
+      await shUpdate('Config!A1:B1',[['chave','valor']]);
+    }
+    // 2. Cashflow: cabeçalhos I1=RefId, J1=Id
+    const cfHdr=await shGet('Cashflow!I1:J1');
+    const h=(cfHdr[0]||[]).map(x=>String(x||'').trim());
+    if(h[0]!=='RefId'||h[1]!=='Id')await shUpdate('Cashflow!I1:J1',[['RefId','Id']]);
+    // 3. Accounts: coluna DataBase (marco zero por conta)
+    const acHdr=await shGet('Accounts!1:1');
+    const hdrNorm=(acHdr[0]||[]).map(x=>String(x||'').toLowerCase().trim().replace(/[^a-z0-9]/g,''));
+    if(!hdrNorm.includes('database')){
+      const colLetter=String.fromCharCode(65+(acHdr[0]||[]).length);
+      await shUpdate(`Accounts!${colLetter}1`,[['DataBase']]);
+    }
+    _schemaOk=true;
+  }catch(e){console.error('ensureSchema:',e);if(e.message==='401')throw e;}
+}
+
+// ══════════════════════════════════════════════════════
+// CONFIG (aba Config no Sheets — persistência entre dispositivos)
+// ══════════════════════════════════════════════════════
+let appConfig={};
+async function loadConfig(){
+  try{
+    const rows=await shGet('Config!A:B');
+    appConfig={};
+    rows.slice(1).forEach(r=>{if(r[0]!==undefined&&r[0]!=='')appConfig[String(r[0]).trim()]=String(r[1]??'');});
+  }catch(e){appConfig={};}
+}
+async function saveConfigKey(k,v){
+  appConfig[k]=String(v);
+  const rows=Object.entries(appConfig);
+  await shClear('Config!A:B');
+  await shUpdate('Config!A1',[['chave','valor'],...rows]);
+}
 
 // ══════════════════════════════════════════════════════
 // DATA LOADING
 // ══════════════════════════════════════════════════════
 async function loadAllData(){
-  // Load Cashflow: Valor | Moeda | Data | Descrição | Conta | Tipo | Categoria | Subcategoria
-  const rows=await shGet('Cashflow!A:H');
+  await ensureSchema();
+  // Load Cashflow: Valor | Moeda | Data | Descrição | Conta | Tipo | Categoria | Subcategoria | RefId | Id
+  const rows=await shGet('Cashflow!A:J');
   if(rows.length>1){
     allData=rows.slice(1).map((r,i)=>{
       const valor=parseSheetNum(r[0]);
@@ -627,6 +684,7 @@ async function loadAllData(){
       const [ano,nMes]=dataISO?dataISO.split('-').map(Number):[0,0];
       return{valor,moeda,dataISO,det:String(r[3]||'').trim(),conta:String(r[4]||'').trim(),
              tipo:String(r[5]||'').trim(),cat:String(r[6]||'').trim(),subcat:String(r[7]||'').trim(),
+             refId:String(r[8]||'').trim(),id:String(r[9]||'').trim(),
              ano,nMes,_row:i+2};
     }).filter(r=>r.valor!==0);
   }else{allData=[];}
@@ -634,13 +692,14 @@ async function loadAllData(){
   await loadCurrency();
   await loadPlanned();
   await loadSims();
+  await loadConfig();
   initDashFilters();
   initLancamentosFilters();
 }
 
 async function loadAccounts(){
   try{
-    const rows=await shGet('Accounts!A:L');
+    const rows=await shGet('Accounts!A:R');
     if(rows.length<2){accounts=[];return;}
     // Use header row to map columns dynamically
     const hdr=rows[0].map(h=>String(h||'').toLowerCase().trim().replace(/[^a-z0-9]/g,''));
@@ -656,6 +715,7 @@ async function loadAccounts(){
     const iSub  =col('subtipo');
     const iBrExt=col('brxext','brext');
     const iObj  =col('objetivo');
+    const iBase =col('database','database');
     function g(r,i){return i>=0&&i<r.length?String(r[i]||'').trim():'';}
     accounts=rows.slice(1).map(r=>({
       nome:g(r,iNome),
@@ -668,7 +728,8 @@ async function loadAccounts(){
       rfRv:g(r,iRfRv),
       subtipo:g(r,iSub),
       brExt:g(r,iBrExt),
-      objetivo:g(r,iObj)
+      objetivo:g(r,iObj),
+      dataBase:iBase>=0?parseSheetDate(r[iBase]):''
     })).filter(a=>a.nome);
   }catch(e){console.error('loadAccounts:',e);accounts=[];}
 }
@@ -1243,7 +1304,7 @@ async function lancarGasto(){
   const dataBR=isoToBR(data);
   if(lancarType==='ajuste'){
     const descAj=document.getElementById('l-desc').value.trim()||'Ajuste de saldo';
-    await shAppend('Cashflow!A:H',[[valor,moeda,dataBR,descAj,conta,'Ajuste','Ajuste','']]);
+    await shAppend('Cashflow!A:J',[[valor,moeda,dataBR,descAj,conta,'Ajuste','Ajuste','','',genId()]]);
     toast('✓ Ajuste registrado!');
     document.getElementById('l-valor').value='';document.getElementById('l-desc').value='';
     await loadAllData();return;
@@ -1251,13 +1312,13 @@ async function lancarGasto(){
   if(lancarType==='reembolso'){
     const cat2=document.getElementById('l-cat')?.value||'';
     const sub2=document.getElementById('l-subcat')?.value||'';
-    await shAppend('Cashflow!A:H',[[valor,moeda,dataBR,desc,conta,'Reembolso',cat2,sub2]]);
+    await shAppend('Cashflow!A:J',[[valor,moeda,dataBR,desc,conta,'Reembolso',cat2,sub2,'',genId()]]);
     toast('✓ Reembolso registrado!');
     document.getElementById('l-valor').value='';document.getElementById('l-desc').value='';
     await loadAllData();return;
   }
   if(lancarType==='receita'){
-    await shAppend('Cashflow!A:H',[[valor,moeda,dataBR,desc,conta,'Receita','Receita','']]);
+    await shAppend('Cashflow!A:J',[[valor,moeda,dataBR,desc,conta,'Receita','Receita','','',genId()]]);
     toast('✓ Receita registrada!');
   }else if(lancarType==='parcela'){
     const n=parseInt(document.getElementById('l-nparcelas').value)||1;
@@ -1266,16 +1327,16 @@ async function lancarGasto(){
     let a=ano,m=mes;const rows=[];
     for(let i=0;i<n;i++){
       const d=`01/${String(m).padStart(2,'0')}/${a}`;
-      rows.push([-valor,moeda,d,desc,conta,'Parcela',cat,sub]);
+      rows.push([-valor,moeda,d,desc,conta,'Parcela',cat,sub,'',genId()]);
       m++;if(m>12){m=1;a++;}
     }
-    for(const row of rows)await shAppend('Cashflow!A:H',[row]);
+    for(const row of rows)await shAppend('Cashflow!A:J',[row]);
     toast(`✓ Parcela ${n}x registrada!`);
   }else{
     const cat=document.getElementById('l-cat').value;
     if(!cat){toast('⚠ Selecione a categoria');return}
     const sub=document.getElementById('l-subcat')?.value||'';
-    await shAppend('Cashflow!A:H',[[-valor,moeda,dataBR,desc,conta,'Despesa',cat,sub]]);
+    await shAppend('Cashflow!A:J',[[-valor,moeda,dataBR,desc,conta,'Despesa',cat,sub,'',genId()]]);
     toast('✓ Despesa registrada!');
   }
   document.getElementById('l-valor').value='';document.getElementById('l-desc').value='';
@@ -1294,10 +1355,11 @@ async function lancarTransferencia(){
   const dataBR=isoToBR(data);
   const sub=document.getElementById('l-transf-sub').value;
   const moedaOrig=getMoedaConta(orig);const moedaDest=getMoedaConta(dest);
-  // Débito na conta origem (negativo)
-  await shAppend('Cashflow!A:H',[[-valorOrig,moedaOrig,dataBR,desc,orig,'Transferência',sub,'']]);
-  // Crédito na conta destino (positivo)
-  await shAppend('Cashflow!A:H',[[valorDest,moedaDest,dataBR,desc,dest,'Transferência',sub,'']]);
+  // Débito na conta origem (negativo) — par vinculado pelo mesmo grupo
+  const tId1=genId(),tId2=genId();
+  await shAppend('Cashflow!A:J',[[-valorOrig,moedaOrig,dataBR,desc,orig,'Transferência',sub,'',tId2,tId1]]);
+  // Crédito na conta destino (positivo) — RefId aponta para a perna de débito
+  await shAppend('Cashflow!A:J',[[valorDest,moedaDest,dataBR,desc,dest,'Transferência',sub,'',tId1,tId2]]);
   toast('✓ Transferência registrada!');
   document.getElementById('l-desc').value='';
   await loadAllData();
@@ -1762,7 +1824,8 @@ async function saveEditLancamento(){
   const orig2=allData.find(d=>d._row===_editRow);const valor=(tipo==="Receita"||(orig2&&orig2.valor>0))?valorAbs_:-valorAbs_;
   const dataBR=isoToBR(dataVal);
   const btn=event.target;btn.disabled=true;btn.textContent='Salvando...';
-  await shUpdate(`Cashflow!A${_editRow}:H${_editRow}`,[[valor,moeda,dataBR,desc,conta,tipo,cat,sub]]);
+  const keepRef=orig?(orig.refId||''):'';const keepId=(orig&&orig.id)?orig.id:genId();
+  await shUpdate(`Cashflow!A${_editRow}:J${_editRow}`,[[valor,moeda,dataBR,desc,conta,tipo,cat,sub,keepRef,keepId]]);
   toast('✓ Atualizado!');
   document.getElementById('ed-modal').classList.add('hidden');
   btn.disabled=false;btn.textContent='✓ Salvar';
