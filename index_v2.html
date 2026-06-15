@@ -431,10 +431,11 @@ svg.ic{vertical-align:-3px}
         <div class="dtab active" onclick="setDashTab('geral',this)">Visão Geral</div>
         <div class="dtab" onclick="setDashTab('superf',this)">Supérfluos</div>
         <div class="dtab" onclick="setDashTab('balanco',this)">Balanço</div>
-        <div class="dtab" onclick="setDashTab('investimentos',this)">Investimentos</div>
       </div>
       <div id="dash-content"></div>
     </div>
+    <!-- INVESTIMENTOS -->
+    <div id="screen-investimentos" class="screen"><div id="inv-content"></div></div>
     <!-- LANÇAMENTOS -->
     <div id="screen-lancamentos" class="screen">
       <div class="filter-bar">
@@ -474,6 +475,7 @@ svg.ic{vertical-align:-3px}
     <button class="nitem" id="nav-lancar" onclick="navigate('lancar')"><div class="nicon-wrap"><span class="nicon"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5v14"/></svg></span></div>Lançar</button>
     <button class="nitem" id="nav-dashboard" onclick="navigate('dashboard')"><div class="nicon-wrap"><span class="nicon"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg></span></div>Dashboard</button>
     <button class="nitem" id="nav-lancamentos" onclick="navigate('lancamentos')"><div class="nicon-wrap"><span class="nicon"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></span></div>Lançamentos</button>
+    <button class="nitem" id="nav-investimentos" onclick="navigate('investimentos')"><div class="nicon-wrap"><span class="nicon"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg></span></div>Invest.</button>
     <button class="nitem" id="nav-simulador" onclick="navigate('simulador')"><div class="nicon-wrap"><span class="nicon"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v6.3a1 1 0 0 1-.17.55L5.2 16.4A2 2 0 0 0 6.9 19.5h10.2a2 2 0 0 0 1.7-3.1l-4.63-7.55A1 1 0 0 1 14 8.3V2"/><path d="M8.5 2h7M6.6 13h10.8"/></svg></span></div>Simular</button>
   </nav>
 </div>
@@ -560,7 +562,7 @@ svg.ic{vertical-align:-3px}
 // ══════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════
-let APP={}, allData=[], accounts=[], currency=[], planned=[], sims=[];
+let APP={}, allData=[], accounts=[], currency=[], planned=[], sims=[], patrimonio=[];
 let token=null, tokenClient=null, charts={};
 let displayCurrency='BRL';
 let activeScreen='diario', dashTab='geral', diarioView='mensal';
@@ -724,6 +726,11 @@ async function ensureSchema(){
       const colLetter=String.fromCharCode(65+(acHdr[0]||[]).length);
       await shUpdate(`Accounts!${colLetter}1`,[['DataBase']]);
     }
+    // 4. Aba Patrimônio (Mês|Conta|Saldo) — fonte de verdade dos saldos de Investimento
+    if(!titles.includes('Patrimônio')){
+      await shAddSheet('Patrimônio');
+      await shUpdate('Patrimônio!A1:C1',[['Mês','Conta','Saldo']]);
+    }
     _schemaOk=true;
   }catch(e){console.error('ensureSchema:',e);if(e.message==='401')throw e;}
 }
@@ -744,6 +751,53 @@ async function saveConfigKey(k,v){
   const rows=Object.entries(appConfig);
   await shClear('Config!A:B');
   await shUpdate('Config!A1',[['chave','valor'],...rows]);
+}
+
+// ══════════════════════════════════════════════════════
+// PATRIMÔNIO (aba Patrimônio — snapshots mensais de saldo por conta de Investimento)
+// ══════════════════════════════════════════════════════
+function _mesOrd(mes){const m=String(mes).match(/(\d{1,2})\D+(\d{4})/);return m?parseInt(m[2])*12+parseInt(m[1]):0;}
+async function loadPatrimonio(){
+  try{
+    const rows=await shGet('Patrimônio!A:C');
+    patrimonio=(rows.length>1?rows.slice(1):[]).map(r=>{
+      const raw=String(r[0]||'').trim();
+      const m=raw.match(/(\d{1,2})\D+(\d{4})/);
+      const mes=m?`${m[1].padStart(2,'0')}/${m[2]}`:raw;
+      return{mes,conta:String(r[1]||'').trim(),saldo:parseSheetNum(r[2]),_ord:_mesOrd(raw)};
+    }).filter(p=>p.conta&&p.mes&&p._ord>0);
+  }catch(e){console.error('loadPatrimonio:',e);patrimonio=[];}
+}
+// último snapshot registrado de uma conta {mes,conta,saldo,_ord} ou null
+function latestSnapshot(accountName){
+  const rows=patrimonio.filter(p=>p.conta===accountName).sort((a,b)=>b._ord-a._ord);
+  return rows.length?rows[0]:null;
+}
+// saldo da conta no mês informado (MM/YYYY), com carry-forward do último snapshot anterior
+function snapshotAt(accountName,mesMMYYYY){
+  const target=_mesOrd(mesMMYYYY);
+  const rows=patrimonio.filter(p=>p.conta===accountName&&p._ord<=target).sort((a,b)=>b._ord-a._ord);
+  return rows.length?rows[0].saldo:0;
+}
+// soma dos últimos snapshots de todas as contas tipo Investimento (BRL)
+function patrimonioTotal(){
+  return accounts.filter(a=>a.tipo==='Investimento').reduce((s,a)=>{const snap=latestSnapshot(a.nome);return s+(snap?snap.saldo:0);},0);
+}
+// lista ordenada de meses MM/YYYY presentes em Patrimônio
+function patrimonioMonths(){
+  return [...new Set(patrimonio.map(p=>p.mes))].sort((a,b)=>_mesOrd(a)-_mesOrd(b));
+}
+// grava/atualiza um snapshot (sobrescreve se já existir mês+conta)
+async function savePatrimonioSnapshot(mesMMYYYY,conta,saldo){
+  const all=await shGet('Patrimônio!A:C');
+  const body=(all.length>1?all.slice(1):[]);
+  let found=-1;
+  body.forEach((r,i)=>{const rm=String(r[0]||'').match(/(\d{1,2})\D+(\d{4})/);const norm=rm?`${rm[1].padStart(2,'0')}/${rm[2]}`:String(r[0]||'').trim();if(norm===mesMMYYYY&&String(r[1]||'').trim()===conta)found=i;});
+  if(found>=0){
+    await shUpdate(`Patrimônio!A${found+2}:C${found+2}`,[[mesMMYYYY,conta,saldo]]);
+  }else{
+    await shAppend('Patrimônio!A:C',[[mesMMYYYY,conta,saldo]]);
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -771,6 +825,7 @@ async function loadAllData(){
   await loadPlanned();
   await loadSims();
   await loadConfig();
+  await loadPatrimonio();
   initDashFilters();
   initLancamentosFilters();
 }
@@ -1692,11 +1747,15 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
       </div>`;
     destroyChart('bal');
     charts['bal']=new Chart(document.getElementById('ch-bal'),{type:'bar',data:{labels,datasets:[{data:balances,backgroundColor:balances.map(v=>v>=0?'#5E7F44':'#C0392B'),borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>(displayCurrency==='EUR'?'€':'R$')+Math.round(v).toLocaleString('pt-BR'),font:{family:'Inter',size:10}}}}}});
-  }else if(dashTab==='investimentos'){
+  }
+}
+
+function renderInvestimentos(){
+  const cont=document.getElementById('inv-content');if(!cont)return;
     var now2=new Date();var ny=now2.getFullYear(),nm=now2.getMonth()+1;
     var invAccts=accounts.filter(function(a){return a.status==='Ativo'&&a.tipo==='Investimento';});
     var opAccts=accounts.filter(function(a){return a.status==='Ativo'&&a.tipo!=='Investimento';});
-    function dispBal(a){return toDisplay(getAccountBalance(a.nome),a.moeda,ny,nm);}
+    function dispBal(a){return a.tipo==='Investimento'?(latestSnapshot(a.nome)?latestSnapshot(a.nome).saldo:0):toDisplay(getAccountBalance(a.nome),a.moeda,ny,nm);}
     var totalInv=invAccts.reduce(function(s,a){return s+dispBal(a);},0);
     var totalOp=opAccts.reduce(function(s,a){return s+dispBal(a);},0);
     var totalRF=invAccts.filter(function(a){return a.rfRv==='RF';}).reduce(function(s,a){return s+dispBal(a);},0);
@@ -1719,7 +1778,8 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
     var allocInv=allocTemp?invAccts.filter(function(a){return a.temporalidade===allocTemp;}):invAccts;
     var uniqTempsAlloc=[...new Set(invAccts.map(function(a){return a.temporalidade;}).filter(Boolean))].sort();
     var allocIdeals=appConfig['inv_alloc_ideals']?JSON.parse(appConfig['inv_alloc_ideals']):JSON.parse(localStorage.getItem('inv_alloc_ideals')||'{}');
-    function aIdeal(k){return allocIdeals[k]||0;}
+    function aKeyNs(k){return allocTemp?(allocTemp+'|'+k):k;}
+    function aIdeal(k){return allocIdeals[aKeyNs(k)]||0;}
     function aSum(fn){return allocInv.filter(fn).reduce(function(s,a){return s+dispBal(a);},0);}
     var brIPCA_RF=aSum(function(a){return a.brExt==='BR'&&/IPCA/i.test(a.subtipo||'')&&a.rfRv==='RF';});
     var brIPCA_RV=aSum(function(a){return a.brExt==='BR'&&/IPCA/i.test(a.subtipo||'')&&a.rfRv==='RV';});
@@ -1732,7 +1792,7 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
     var tot_ALL  =tot_RF+tot_RV;
     function aPct(v){return tot_ALL>0?Math.round(v/tot_ALL*100):0;}
     function aDiff(pct,ideal){if(!ideal)return'';if(pct>ideal+3)return'color:var(--red)';if(pct<ideal-3)return'color:#2563eb';return'color:var(--mid)';}
-    function aIdealInput(k){return'<input type="number" class="alloc-ideal" min="0" max="100" value="'+aIdeal(k)+'" onchange="saveAllocIdeal(\''+k+'\',this.value)">%';}
+    function aIdealInput(k){return'<input type="number" class="alloc-ideal" min="0" max="100" value="'+aIdeal(k)+'" onchange="saveAllocIdeal(\''+aKeyNs(k)+'\',this.value)">%';}
     function allocRow(region,regionKey,subtipo,subKey,rfVal,rvVal){
       var rowTotal=rfVal+rvVal;
       var rfPct=aPct(rfVal),rvPct=aPct(rvVal);
@@ -1872,13 +1932,28 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
       return '<tr><td style="font-weight:500">'+a.nome+'</td><td class="td-muted">'+(a.banco||'—')+'</td><td>'+subBadge+'</td><td>'+rfBadge+'</td><td class="td-muted" style="font-size:11px">'+(a.temporalidade||'—')+'</td><td class="td-muted" style="font-size:11px">'+(a.objetivo||'—')+'</td><td class="td-r">'+fmt(bal2)+'</td></tr>';
     }).join('');
 
+    // ── EVOLUÇÃO PATRIMONIAL (4b) + FORM SNAPSHOT (4a) ──
+    var pMonths=patrimonioMonths();
+    var pLabels=pMonths.map(function(m){var p=m.split('/');return p[0]+'/'+p[1].slice(2);});
+    var evoTotals=pMonths.map(function(m){return invAccts.reduce(function(s,a){return s+snapshotAt(a.nome,m);},0);});
+    var lastTot=evoTotals.length?evoTotals[evoTotals.length-1]:patrimonioTotal();
+    var prevTot=evoTotals.length>1?evoTotals[evoTotals.length-2]:0;
+    var varMes=lastTot-prevTot;
+    var evoBarColors=['#1F4633','#3A7D44','#5E7F44','#7A9B5C','#E8821E','#B5925A','#C0392B','#8B6F47','#4A6FA5','#9B59B6'];
+    var evoAcctDatasets=invAccts.map(function(a,i){return{label:a.nome,data:pMonths.map(function(m){return snapshotAt(a.nome,m);}),backgroundColor:evoBarColors[i%evoBarColors.length],borderRadius:4,stack:'s'};});
+    var invEvoHTML=pMonths.length?('<div class="card"><div class="card-title">Evolução do patrimônio</div><div class="chart-box" style="height:200px"><canvas id="ch-inv-evo"></canvas></div></div>'+'<div class="card"><div class="card-title">Por conta</div><div class="chart-box" style="height:240px"><canvas id="ch-inv-evo-acct"></canvas></div></div>'):'<div class="card" style="text-align:center;color:var(--muted);font-size:13px;padding:20px">Sem snapshots de patrimônio ainda. Use o formulário abaixo para registrar o primeiro saldo.</div>';
+    var nowYM=(new Date()).toISOString().slice(0,7);
+    var snapAcctOpts=invAccts.map(function(a){return'<option value="'+a.nome+'">'+a.nome+'</option>';}).join('');
+    var latestList=invAccts.map(function(a){var sn=latestSnapshot(a.nome);return'<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)"><span>'+a.nome+'</span><span style="font-weight:600">'+(sn?(fmt(sn.saldo)+' <span style="color:var(--muted);font-size:10px">'+sn.mes+'</span>'):'<span style="color:var(--muted)">—</span>')+'</span></div>';}).join('');
+    var invFormHTML='<div class="card"><div class="card-title">Atualizar saldo (snapshot mensal)</div><div class="fi-row"><select class="fs" id="snap-acct">'+snapAcctOpts+'</select><input class="fi" type="month" id="snap-mes" value="'+nowYM+'"></div><input class="fi" type="number" id="snap-val" placeholder="Saldo atual (R$)" style="margin-top:8px"><button class="btn btn-primary btn-block" style="margin-top:10px" onclick="saveSnapshotForm()">Salvar saldo</button><div style="font-size:11px;color:var(--muted);margin:10px 0 4px">Último registro por conta</div>'+latestList+'</div>';
     var aporteM=aporteMensal(ny,nm);
-    var tipInv=tipBtn('i_tot','Total investido','<div class="tip-formula">Total = Σ saldo das contas tipo Investimento ativas</div><div>'+fmt(totalInv)+'</div><div class="tip-src">Saldo = saldo inicial (data-base) + aportes/resgates + rendimentos lançados. Origem: Accounts + Cashflow.</div>');
-    var tipAp=tipBtn('i_apt','Aporte mensal','<div class="tip-formula">Aporte = Σ transferências subtipo Investimento em '+MONTHS[nm-1]+'</div><div>'+fmt(aporteM)+'</div><div class="tip-src">Pernas de crédito em contas de Investimento. Só considera aportes registrados com o subtipo Investimento (a partir desta versão).</div>');
+    var tipInv=tipBtn('i_tot','Total investido','<div class="tip-formula">Total = Σ último snapshot de cada conta de Investimento</div><div>'+fmt(totalInv)+'</div><div class="tip-src">Origem: aba Patrimônio (snapshots mensais). Metadados (RF/RV, subtipo) vêm de Accounts.</div>');
+    var tipVar=tipBtn('i_var','Variação no mês','<div class="tip-formula">Variação = patrimônio do último mês − mês anterior (snapshots)</div><div>'+fmt(varMes)+'</div><div class="tip-src">Origem: aba Patrimônio. Inclui aportes e rendimentos.</div>');
     cont.innerHTML='<div class="sum-grid" style="margin-bottom:16px;grid-template-columns:1fr 1fr">'
       +'<div class="sum-item accent"><div class="sum-label">Total investido'+tipInv+'</div><div class="sum-val">'+fmtN(totalInv)+'</div></div>'
-      +'<div class="sum-item"><div class="sum-label">Aporte mensal'+tipAp+'</div><div class="sum-val pos">'+fmtN(aporteM)+'</div></div>'
+      +'<div class="sum-item"><div class="sum-label">Variação no mês'+tipVar+'</div><div class="sum-val '+(varMes>=0?'pos':'neg')+'">'+fmtN(varMes)+'</div></div>'
       +'</div>'
+      +invEvoHTML+invFormHTML
       +allocTableHTML
       +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div class="card-title" style="margin-bottom:0">Alocação por</div><div style="display:flex;gap:5px;flex-wrap:wrap">'+['Banco','Subtipo','Temporalidade','Objetivo'].map(groupBtn).join('')+'</div></div>'
       +'<div class="chart-box" style="height:'+Math.max(160,groupKeys.length*38)+'px"><canvas id="ch-inv-alloc"></canvas></div></div>'
@@ -1894,6 +1969,13 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
       +'<div class="tbl-wrap"><table class="data"><thead><tr>'+thInv('nome','Nome')+thInv('banco','Banco')+'<th>Subtipo</th><th>RF/RV</th><th>Temp.</th><th>Objetivo</th>'+thInv('valor','Valor')+'</tr></thead>'
       +'<tbody>'+tableRows2+(filtInv2.length?'<tr style="font-weight:700;border-top:2px solid var(--border)"><td colspan="6">Total ('+filtInv2.length+' itens)</td><td class="td-r">'+fmt(totalFiltInv2)+'</td></tr>':'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Nenhum resultado</td></tr>')+'</tbody></table></div></div>';
 
+    destroyChart('inv-evo');destroyChart('inv-evo-acct');
+    if(pMonths.length){
+      var ce=document.getElementById('ch-inv-evo');
+      if(ce)charts['inv-evo']=new Chart(ce,{type:'line',data:{labels:pLabels,datasets:[{data:evoTotals,borderColor:'#1F4633',backgroundColor:'rgba(31,70,51,.08)',fill:true,tension:.3,pointRadius:3,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return' '+fmt(c.raw);}}}},scales:{x:{ticks:{font:{family:'Inter',size:10}},grid:{display:false}},y:{ticks:{callback:function(v){return(displayCurrency==='EUR'?'€':'R$')+Math.round(v/1000)+'k';},font:{family:'Inter',size:10}},grid:{color:'rgba(0,0,0,.05)'}}}}});
+      var ca=document.getElementById('ch-inv-evo-acct');
+      if(ca)charts['inv-evo-acct']=new Chart(ca,{type:'bar',data:{labels:pLabels,datasets:evoAcctDatasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{font:{family:'Inter',size:9},boxWidth:10}},tooltip:{callbacks:{label:function(c){return' '+c.dataset.label+': '+fmt(c.raw);}}}},scales:{x:{stacked:true,ticks:{font:{family:'Inter',size:10}},grid:{display:false}},y:{stacked:true,ticks:{callback:function(v){return(displayCurrency==='EUR'?'€':'R$')+Math.round(v/1000)+'k';},font:{family:'Inter',size:10}},grid:{color:'rgba(0,0,0,.05)'}}}}});
+    }
     destroyChart('inv-alloc');
     if(groupKeys.length){
       var ctx2=document.getElementById('ch-inv-alloc');
@@ -1907,7 +1989,6 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
         });
       }
     }
-  }
 }
 
 function toggleBankCard(id){
@@ -1997,6 +2078,19 @@ async function saveAllocIdeal(k,v){
   localStorage.setItem('inv_alloc_ideals',JSON.stringify(d));
   await saveConfigKey('inv_alloc_ideals',JSON.stringify(d));
   toast('✓ % ideal salvo');
+  if(activeScreen==='investimentos')renderInvestimentos();
+}
+async function saveSnapshotForm(){
+  var acct=document.getElementById('snap-acct').value;
+  var mesRaw=document.getElementById('snap-mes').value;
+  var val=parseFloat(document.getElementById('snap-val').value);
+  if(!acct||!mesRaw||isNaN(val)){toast('Preencha conta, mês e saldo');return;}
+  var parts=mesRaw.split('-');var mes=parts[1]+'/'+parts[0];
+  toast('Salvando...');
+  await savePatrimonioSnapshot(mes,acct,val);
+  await loadPatrimonio();
+  renderInvestimentos();
+  toast('✓ Saldo atualizado');
 }
 
 let _editRow=null;
@@ -2280,7 +2374,7 @@ function navigate(screen){
   document.querySelectorAll('.nitem').forEach(n=>n.classList.remove('active'));
   document.getElementById(`screen-${screen}`)?.classList.add('active');
   document.getElementById(`nav-${screen}`)?.classList.add('active');
-  const titles={diario:'Diário',lancar:'Lançar',dashboard:'Dashboard',lancamentos:'Lançamentos',simulador:'Simulador',config:'Configurações'};
+  const titles={diario:'Diário',lancar:'Lançar',dashboard:'Dashboard',investimentos:'Investimentos',lancamentos:'Lançamentos',simulador:'Simulador',config:'Configurações'};
   const el=document.getElementById('app-title-text');
   if(el)el.textContent=titles[screen]||'Finanças';
   activeScreen=screen;renderScreen(screen);
@@ -2289,6 +2383,7 @@ function renderScreen(s){
   if(s==='diario')renderDiario();
   else if(s==='lancar')initLancar();
   else if(s==='dashboard')renderDashboard();
+  else if(s==='investimentos')renderInvestimentos();
   else if(s==='lancamentos')renderLancamentos();
   else if(s==='simulador')renderSimulador();
   else if(s==='config')renderConfig();
