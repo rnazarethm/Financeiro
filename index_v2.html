@@ -347,6 +347,16 @@ table.data tr:hover,.bank-card-hdr:hover,.ms-item:hover{background:var(--hov)}
 .icon-spin{animation:spin 1s linear infinite}
 svg.ic{vertical-align:-3px}
 .nicon svg.ic{vertical-align:0}
+
+/* Fase 1 — orçamento grid compacto */
+.bud-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px}
+@media(min-width:701px){.bud-grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1000px){.bud-grid{grid-template-columns:repeat(4,1fr)}}
+.bud-card-c{padding:12px!important;margin-bottom:0!important}
+.bud-c-top{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:8px}
+.bud-c-top .bud-cat-label{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bud-c-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:8px}
+.bud-c-meta b{color:var(--text)}
 </style>
 </head>
 <body>
@@ -1067,14 +1077,14 @@ function renderDiarioMensal(){
   let calCells='';
   ['D','S','T','Q','Q','S','S'].forEach(d=>{calCells+=`<div class="cal-dow">${d}</div>`;});
   for(let i=0;i<firstDOW;i++)calCells+=`<div class="cal-day empty"></div>`;
-  let dailyReal=0,dailyFut=0;
+  let dailyReal=0,dailyFut=0,realizedBefore=0,projDays=0;
   for(let d=1;d<=dias;d++){
     const iso=`${diarioYear}-${String(diarioMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday=iso===todayStr;
     const isPast=new Date(diarioYear,diarioMonth-1,d)<=today;
     let val=0,cls='future',hasData=false;
-    if(isPast){val=daySpend(iso);dailyReal+=val;cls=isToday?'today':'past';hasData=val>0;}
-    else{val=dailyLim;dailyFut+=val;}
+    if(isPast){val=daySpend(iso);dailyReal+=val;cls=isToday?'today':'past';hasData=val>0;if(isToday)projDays++;else realizedBefore+=val;}
+    else{val=dailyLim;dailyFut+=val;projDays++;}
     const overLim=isPast&&!isToday&&val>dailyLim;
     const underLim=isPast&&!isToday&&val>0&&val<=dailyLim;
     let extra='';
@@ -1097,7 +1107,7 @@ function renderDiarioMensal(){
     ftPrevTot=ativos.reduce((s,det)=>{const row=fixosDB.find(r=>r.det===det);return s+(row?netAbsDisp(row):ultimoValor(det));},0);
     fixosDB.filter(r=>!ativos.includes(r.det)).forEach(r=>{ftPrevTot+=netAbsDisp(r);});
   }
-  const diaEf=dailyReal,diaPrevTot=dailyReal+dailyFut;
+  const diaEf=dailyReal,diaPrevTot=realizedBefore+dailyLim*projDays;
   const totEf=ftEf+pt+diaEf;
   const totPrevTot=ftPrevTot+pt+diaPrevTot;
   const saldoEf=inc-totEf,saldoPrev=inc-totPrevTot;
@@ -1115,17 +1125,13 @@ function renderDiarioMensal(){
     const pct=budget>0?spent/budget:0;
     const col=semCol(pct);
     const remaining=budget-spent;
-    return`<div class="bud-card">
-      <div class="bud-card-top">
-        <div class="bud-cat-label">${p.cat}</div>
-        <div class="bud-pct-badge ${col}">${Math.round(pct*100)}%</div>
+    return`<div class="bud-card bud-card-c">
+      <div class="bud-c-top">
+        <span class="bud-cat-label">${p.cat}</span>
+        <span class="bud-pct-badge ${col}">${Math.round(pct*100)}%</span>
       </div>
       <div class="bud-bar"><div class="bud-bar-inner ${col}" style="width:${Math.min(pct*100,100)}%"></div></div>
-      <div class="bud-meta">
-        <span>Gasto: <b style="color:var(--text)">${fmt(spent)}</b></span>
-        <span>Orçado: <b style="color:var(--text)">${fmt(budget)}</b></span>
-        <span style="color:${remaining>=0?'var(--mid)':'var(--red)'};font-weight:600">${remaining>=0?'Restante: '+fmt(remaining):'Acima: '+fmt(-remaining)}</span>
-      </div>
+      <div class="bud-c-meta"><span>Gasto <b>${fmt(spent)}</b></span><span>de <b>${fmt(budget)}</b></span></div>
     </div>`;
   }).join('');
 
@@ -1145,7 +1151,7 @@ function renderDiarioMensal(){
         <div class="bud-global-item"><div class="bud-global-label">Gasto</div><div class="bud-global-val">${fmtK(totalGasto)}</div></div>
         <div class="bud-global-item"><div class="bud-global-label">Utilizado</div><div class="bud-global-val" style="color:${gColHex}">${Math.round(gPct*100)}%</div></div>
       </div>
-      ${budCards}
+      <div class="bud-grid">${budCards}</div>
     </div>`:'';
 
   const lastUp=lastUpdatedDate();
@@ -1162,7 +1168,7 @@ function renderDiarioMensal(){
       <div class="ovw-item"><div class="ovw-cat">Receitas${tipBtn('m_rec','Receitas',`<div class="tip-formula">Receita total = soma das receitas do mês</div><div>${fmt(inc)}</div><div class="tip-src">Origem: aba Cashflow, tipo Receita (exclui categoria Rendimentos). Sem lançamentos em mês atual/futuro, usa a linha Receita da aba Planned.</div>`)}</div><div class="ovw-main pos">${fmtN(inc)}</div></div>
       <div class="ovw-item"><div class="ovw-cat">Gastos Fixos${tipBtn('m_fix','Gastos Fixos',`<div class="tip-formula">Efetivado = Σ líquido (gasto − reembolso vinculado)<br>Previsto = fixos do mês anterior projetados</div><div>Efetivado: ${fmt(ftEf)} · Previsto: ${fmt(ftPrevTot)}</div><div class="tip-src">Origem: Cashflow, tipo Despesa, categoria Fixo, no mês ${MONTHS[diarioMonth-1]}/${diarioYear}.</div>`)}</div><div class="ovw-main">${fmtN(ftEf)}</div><div class="ovw-sub">Previsto: ${fmtN(ftPrevTot)}</div></div>
       <div class="ovw-item"><div class="ovw-cat">Parcelas${tipBtn('m_parc','Parcelas',`<div class="tip-formula">Total = Σ líquido das parcelas do mês</div><div>${fmt(pt)}</div><div class="tip-src">Origem: Cashflow, tipo Parcela, mês ${MONTHS[diarioMonth-1]}/${diarioYear}.</div>`)}</div><div class="ovw-main">${fmtN(pt)}</div></div>
-      <div class="ovw-item"><div class="ovw-cat">Dia a Dia${tipBtn('m_dia','Gastos do Dia a Dia',`<div class="tip-formula">Efetivado = Σ líquido das despesas (exceto Fixo) até hoje<br>Previsto = efetivado + dias restantes × limite diário (${fmt(dailyLim)})</div><div>Efetivado: ${fmt(diaEf)} · Previsto: ${fmt(diaPrevTot)}</div><div class="tip-src">Origem: Cashflow, tipo Despesa com categoria ≠ Fixo. Limite diário: aba Planned, linha Diário.</div>`)}</div><div class="ovw-main">${fmtN(diaEf)}</div><div class="ovw-sub">Previsto: ${fmtN(diaPrevTot)}</div></div>
+      <div class="ovw-item"><div class="ovw-cat">Dia a Dia${tipBtn('m_dia','Gastos do Dia a Dia',`<div class="tip-formula">Efetivado = Σ líquido das despesas (exceto Fixo) até hoje<br>Previsto = gastos dos dias encerrados + limite diário (${fmt(dailyLim)}) × dias restantes (incl. hoje)</div><div>Efetivado: ${fmt(diaEf)} · Previsto: ${fmt(diaPrevTot)}</div><div class="tip-src">Origem: Cashflow, tipo Despesa com categoria ≠ Fixo. Limite diário: aba Planned, linha Diário.</div>`)}</div><div class="ovw-main">${fmtN(diaEf)}</div><div class="ovw-sub">Previsto: ${fmtN(diaPrevTot)}</div></div>
       <div class="ovw-item"><div class="ovw-cat">Totais${tipBtn('m_tot','Gastos Totais',`<div class="tip-formula">Efetivado = Fixos + Parcelas + Dia a dia<br>${fmt(ftEf)} + ${fmt(pt)} + ${fmt(diaEf)} = ${fmt(totEf)}</div><div class="tip-formula">Previsto = ${fmt(ftPrevTot)} + ${fmt(pt)} + ${fmt(diaPrevTot)} = ${fmt(totPrevTot)}</div><div class="tip-src">Todos os valores são líquidos de reembolsos vinculados.</div>`)}</div><div class="ovw-main">${fmtN(totEf)}</div><div class="ovw-sub">Previsto: ${fmtN(totPrevTot)}</div></div>
       <div class="ovw-item accent"><div class="ovw-cat">Saldo${tipBtn('m_sal','Saldo',`<div class="tip-formula">Saldo = Receitas − Gastos efetivados<br>${fmt(inc)} − ${fmt(totEf)} = ${fmt(saldoEf)}</div><div class="tip-formula">Saldo previsto = Receitas − Gastos previstos<br>${fmt(inc)} − ${fmt(totPrevTot)} = ${fmt(saldoPrev)}</div>`)}</div><div class="ovw-main ${saldoEf<0?'neg':''}">${fmtN(saldoEf)}</div><div class="ovw-sub">Previsto: ${fmtN(saldoPrev)}</div></div>
     </div>
@@ -1335,7 +1341,7 @@ function renderDiarioAnual(){
 function getCustomCats(){return JSON.parse(localStorage.getItem('customCats')||'{}')}
 function saveCustomCats(obj){localStorage.setItem('customCats',JSON.stringify(obj))}
 function activeAccounts(){return accounts.filter(a=>a.status==='Ativo')}
-function accountOptions(){return activeAccounts().map(a=>`<option value="${a.nome}">${a.nome} (${a.moeda})</option>`).join('')}
+function accountOptions(){return activeAccounts().filter(a=>a.tipo!=='Investimento').map(a=>`<option value="${a.nome}">${a.nome} (${a.moeda})</option>`).join('')}
 
 function setLancarType(type,el){
   lancarType=type;
