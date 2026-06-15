@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finanças v2</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#3D4F35">
+<meta name="theme-color" content="#1F4633">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Finanças">
@@ -14,7 +14,7 @@
 <script src="https://accounts.google.com/gsi/client"></script>
 <style>
 :root{
-  --dark:#2D5A3D;--mid:#3A7D44;--action:#2D5A3D;--pos:#3A7D44;
+  --dark:#1F4633;--mid:#3A7D44;--action:#1F4633;--pos:#3A7D44;
   --cream:#E8DFC0;--orange:#E8821E;--bg:#F5F3EF;--card:#FFFFFF;
   --text:#1C1C1E;--muted:#6C6C70;--border:rgba(0,0,0,0.08);
   --separator:rgba(0,0,0,0.08);--red:#D63031;--nav:58px;
@@ -119,9 +119,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .ay-hdr{font-size:8px;font-weight:700;color:var(--muted);text-align:center;padding:5px 1px 4px;background:var(--cream);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.03em}
 .ay-hdr.ay-cur-hdr{color:var(--orange);background:rgba(232,130,30,.12);font-weight:800}
 .ay-lbl{font-size:10px;font-weight:500;color:var(--text);padding:5px 8px;display:flex;align-items:center;border-bottom:1px solid rgba(0,0,0,.04);min-height:30px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;background:var(--card)}
-.ay-lbl.ay-alt{background:rgba(232,223,192,.28)}
+.ay-lbl.ay-alt{background:rgba(241,233,209,.28)}
 .ay-cell{display:flex;align-items:center;justify-content:center;padding:3px 1px;border-bottom:1px solid rgba(0,0,0,.04);min-height:30px;position:relative;overflow:hidden;background:var(--card)}
-.ay-cell.ay-alt{background:rgba(232,223,192,.28)}
+.ay-cell.ay-alt{background:rgba(241,233,209,.28)}
 .ay-cell.ay-cur{background:rgba(232,130,30,.07)!important}
 .ay-bar{position:absolute;bottom:0;left:1px;right:1px;background:rgba(94,127,68,.18);border-radius:2px 2px 0 0}
 .ay-v{font-size:8.5px;font-weight:700;color:var(--text);position:relative;z-index:1;text-align:center;line-height:1.2;white-space:nowrap}
@@ -174,7 +174,7 @@ table.data{width:100%;border-collapse:collapse;font-size:13px}
 table.data th{text-align:left;padding:8px;background:var(--cream);font-size:10px;font-weight:700;color:var(--dark);text-transform:uppercase;letter-spacing:.05em;cursor:pointer;user-select:none;white-space:nowrap}
 table.data th:hover{background:var(--border)}
 table.data td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
-table.data tr:hover td{background:rgba(232,223,192,.3)}
+table.data tr:hover td{background:rgba(241,233,209,.3)}
 table.data tr:last-child td{border-bottom:none}
 .td-r{text-align:right;font-weight:600}
 .td-muted{color:var(--muted);font-size:12px}
@@ -283,7 +283,7 @@ table.data tr:last-child td{border-bottom:none}
 .alloc-tbl{width:100%;border-collapse:collapse;font-size:11px}
 .alloc-tbl th{background:#f0efeb;padding:5px 7px;font-weight:600;text-align:center;white-space:nowrap;border:1px solid var(--border)}
 .alloc-tbl td{padding:6px 7px;border:1px solid var(--border);white-space:nowrap}
-.alloc-tbl td.region{background:rgba(61,79,53,.08);color:#2D5A3D;font-weight:700;font-size:10px;text-align:center}
+.alloc-tbl td.region{background:rgba(61,79,53,.08);color:#1F4633;font-weight:700;font-size:10px;text-align:center}
 .alloc-tbl td.subtipo{font-size:10px;color:var(--muted)}
 .alloc-tbl td.num{text-align:right}
 .alloc-tbl tr.total-row td{font-weight:700;background:#f0efeb}
@@ -309,13 +309,51 @@ table.data tr:last-child td{border-bottom:none}
 .tip-formula{background:var(--cream);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:12px;color:var(--dark);margin:8px 0}
 .tip-src{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5}
 
+
+/* ===== Fase 0 — Design Premium override ===== */
+:root{
+  --bg:#F7F7F4;--cream:#F1E9D1;
+  --border:rgba(0,0,0,0.055);--separator:rgba(0,0,0,0.06);
+  --shadow-card:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.04);
+  --shadow-active:0 1px 2px rgba(0,0,0,.05),0 4px 12px rgba(0,0,0,.04);
+  --hov:rgba(35,65,49,.05);
+}
+.card,.bud-card,.bank-card,.auth-card,.ay-section,.ovw-item,.sim-empty{border:none!important;box-shadow:var(--shadow-card)}
+.fi,.fs,.fi-static{background:#F4F4F2;border-color:transparent}
+.fi:focus,.fs:focus{background:#fff;border-color:var(--mid)}
+.filter-select,.filter-search,.ms-trigger,.cfg-input{border-color:rgba(0,0,0,.07)}
+.card-title{font-size:16px;font-weight:700;color:var(--text)}
+.app-title{font-size:20px}
+.mnav-title{font-size:20px;font-weight:800;letter-spacing:-.02em}
+.fl{font-weight:700;letter-spacing:.08em}
+.ay-hdr{font-size:11px}
+.cal-dow{font-size:10px}
+table.data th{font-size:11px;background:#fff;color:var(--muted)}
+.sum-label,.ovw-cat{font-weight:700;letter-spacing:.08em}
+.toggle-row{background:rgba(0,0,0,.045)}
+.toggle-btn.active{background:#fff;box-shadow:var(--shadow-active)}
+.nitem.active .nicon-wrap{background:rgba(31,70,51,.12)}
+.ms-trigger.has-sel{background:rgba(31,70,51,.08)}
+.tbtn{border-radius:12px;transition:.2s ease;display:inline-flex;align-items:center;gap:6px}
+.tbtn.active{background:rgba(31,70,51,.07);transform:scale(1.02);box-shadow:var(--shadow-active)}
+.tbtn:hover{background:var(--hov)}
+.ay-hdr.ay-cur-hdr{background:#FFF7EA;box-shadow:inset 0 2px 0 var(--orange)}
+.ay-cell.ay-cur{background:#FFF7EA!important}
+.ay-lbl,.ay-cell,.drow{border-color:rgba(0,0,0,.03)}
+.badge{font-weight:700;padding:2px 10px}
+table.data tr:hover,.bank-card-hdr:hover,.ms-item:hover{background:var(--hov)}
+.alloc-tbl th{background:#F4F4F2}
+@keyframes spin{to{transform:rotate(360deg)}}
+.icon-spin{animation:spin 1s linear infinite}
+svg.ic{vertical-align:-3px}
+.nicon svg.ic{vertical-align:0}
 </style>
 </head>
 <body>
 <!-- SETUP -->
 <div id="setup-screen" class="auth-wrap" style="display:none">
   <div class="auth-card">
-    <div class="auth-logo">💰</div>
+    <div class="auth-logo" style="color:var(--dark)"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg></div>
     <div class="auth-title">Finanças v2</div>
     <div class="auth-sub">Configure o app</div>
     <div class="fg"><label class="fl">Google Client ID</label><input class="fi" id="s-clientid" placeholder="xxxxx.apps.googleusercontent.com"></div>
@@ -329,16 +367,16 @@ table.data tr:last-child td{border-bottom:none}
 <!-- LOGIN -->
 <div id="login-screen" class="auth-wrap" style="display:none">
   <div class="auth-card">
-    <div class="auth-logo">💰</div>
+    <div class="auth-logo" style="color:var(--dark)"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg></div>
     <div class="auth-title">Finanças v2</div>
     <div class="auth-sub">Entre com sua conta Google</div>
-    <button class="btn btn-primary btn-block" onclick="signIn()">🔑 Entrar com Google</button>
-    <div style="text-align:center;margin-top:12px"><span style="font-size:12px;color:var(--muted);cursor:pointer" onclick="showSetup()">⚙ Reconfigurar</span></div>
+    <button class="btn btn-primary btn-block" onclick="signIn()"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg> Entrar com Google</button>
+    <div style="text-align:center;margin-top:12px"><span style="font-size:12px;color:var(--muted);cursor:pointer" onclick="showSetup()"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg> Reconfigurar</span></div>
   </div>
 </div>
 <!-- LOADING -->
 <div id="loading-screen" class="auth-wrap" style="display:none">
-  <div style="text-align:center;color:var(--muted)"><div style="font-size:36px;margin-bottom:12px">⏳</div><div style="font-size:14px;font-weight:600">Carregando dados...</div></div>
+  <div style="text-align:center;color:var(--muted)"><div style="margin-bottom:12px;color:var(--dark)"><svg class="ic icon-spin" xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div><div style="font-size:14px;font-weight:600">Carregando dados...</div></div>
 </div>
 <!-- APP -->
 <div id="app">
@@ -346,16 +384,16 @@ table.data tr:last-child td{border-bottom:none}
     <div class="app-title" id="app-title-text">Diário</div>
     <div class="hdr-btns">
       <button class="hdr-btn" id="cur-toggle" onclick="toggleCurrency()" title="Alternar moeda de exibição">€ EUR</button>
-      <button class="hdr-btn" onclick="refreshData()">↻</button>
-      <button class="hdr-btn" onclick="navigate('config')">⚙</button>
+      <button class="hdr-btn" onclick="refreshData()"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg></button>
+      <button class="hdr-btn" onclick="navigate('config')"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg></button>
     </div>
   </header>
   <div class="content">
     <!-- DIÁRIO -->
     <div id="screen-diario" class="screen">
       <div class="toggle-row">
-        <button class="toggle-btn active" id="view-mensal-btn" onclick="setDiarioView('mensal')">📅 Mensal</button>
-        <button class="toggle-btn" id="view-anual-btn" onclick="setDiarioView('anual')">📊 Anual</button>
+        <button class="toggle-btn active" id="view-mensal-btn" onclick="setDiarioView('mensal')"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Mensal</button>
+        <button class="toggle-btn" id="view-anual-btn" onclick="setDiarioView('anual')"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg> Anual</button>
       </div>
       <div id="diario-content"></div>
     </div>
@@ -364,12 +402,12 @@ table.data tr:last-child td{border-bottom:none}
       <div class="card">
         <div class="card-title">Tipo de lançamento</div>
         <div class="tsel">
-          <div class="tbtn active" onclick="setLancarType('despesa',this)">💸 Despesa</div>
-          <div class="tbtn" onclick="setLancarType('receita',this)">💰 Receita</div>
-          <div class="tbtn" onclick="setLancarType('parcela',this)">💳 Parcela</div>
-          <div class="tbtn" onclick="setLancarType('transferencia',this)">↔ Transferência</div>
-          <div class="tbtn" onclick="setLancarType('reembolso',this)">↩ Reembolso</div>
-          <div class="tbtn" onclick="setLancarType('ajuste',this)">⚖ Ajuste</div>
+          <div class="tbtn active" onclick="setLancarType('despesa',this)"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 17h6v-6"/><path d="M22 17 13.5 8.5 8.5 13.5 2 7"/></svg> Despesa</div>
+          <div class="tbtn" onclick="setLancarType('receita',this)"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></svg> Receita</div>
+          <div class="tbtn" onclick="setLancarType('parcela',this)"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></svg> Parcela</div>
+          <div class="tbtn" onclick="setLancarType('transferencia',this)"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg> Transferência</div>
+          <div class="tbtn" onclick="setLancarType('reembolso',this)"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg> Reembolso</div>
+          <div class="tbtn" onclick="setLancarType('ajuste',this)"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10M12 3v18M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg> Ajuste</div>
         </div>
       </div>
       <div class="card" id="lancar-form-card">
@@ -395,7 +433,7 @@ table.data tr:last-child td{border-bottom:none}
         <select class="filter-select" id="lt-cat" onchange="renderLancamentos()"><option value="">Todas as categorias</option></select>
         <select class="filter-select" id="lt-tipo" onchange="renderLancamentos()"><option value="">Todos os tipos</option><option>Despesa</option><option>Receita</option><option>Parcela</option><option>Transferência</option><option>Reembolso</option><option>Ajuste</option></select>
         <select class="filter-select" id="lt-conta" onchange="renderLancamentos()"><option value="">Todas as contas</option></select>
-        <input class="filter-search" id="lt-search" placeholder="🔍 Buscar..." oninput="renderLancamentos()">
+        <input class="filter-search" id="lt-search" placeholder="Buscar..." oninput="renderLancamentos()">
       </div>
       <div id="lt-summary" style="margin-bottom:10px"></div>
       <div class="card" style="padding:0;overflow:hidden">
@@ -409,24 +447,24 @@ table.data tr:last-child td{border-bottom:none}
       <div class="card">
         <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">Orçamento por Categoria<button class="btn btn-sm btn-outline" onclick="addPlannedField()">+ Adicionar</button></div>
         <div id="cfg-planned"></div>
-        <button class="btn btn-outline btn-block" style="margin-top:12px" onclick="savePlanned()">💾 Salvar orçamento</button>
+        <button class="btn btn-outline btn-block" style="margin-top:12px" onclick="savePlanned()"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg> Salvar orçamento</button>
       </div>
       <div class="card">
         <div class="card-title">Contas</div>
         <div id="cfg-accounts"></div>
       </div>
       <div style="margin-top:10px">
-        <button class="btn btn-outline btn-block" onclick="showExportConfig()">📲 Exportar para outro dispositivo</button>
+        <button class="btn btn-outline btn-block" onclick="showExportConfig()"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg> Exportar para outro dispositivo</button>
       </div>
       <div style="text-align:center;margin-top:10px"><span style="font-size:12px;color:var(--muted);cursor:pointer" onclick="showSetup()">Reconfigurar Client ID / Sheet ID</span></div>
     </div>
   </div>
   <nav class="bnav">
-    <button class="nitem active" id="nav-diario" onclick="navigate('diario')"><div class="nicon-wrap"><span class="nicon">📅</span></div>Diário</button>
-    <button class="nitem" id="nav-lancar" onclick="navigate('lancar')"><div class="nicon-wrap"><span class="nicon">➕</span></div>Lançar</button>
-    <button class="nitem" id="nav-dashboard" onclick="navigate('dashboard')"><div class="nicon-wrap"><span class="nicon">📊</span></div>Dashboard</button>
-    <button class="nitem" id="nav-lancamentos" onclick="navigate('lancamentos')"><div class="nicon-wrap"><span class="nicon">📋</span></div>Lançamentos</button>
-    <button class="nitem" id="nav-simulador" onclick="navigate('simulador')"><div class="nicon-wrap"><span class="nicon">🧪</span></div>Simular</button>
+    <button class="nitem active" id="nav-diario" onclick="navigate('diario')"><div class="nicon-wrap"><span class="nicon"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span></div>Diário</button>
+    <button class="nitem" id="nav-lancar" onclick="navigate('lancar')"><div class="nicon-wrap"><span class="nicon"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5v14"/></svg></span></div>Lançar</button>
+    <button class="nitem" id="nav-dashboard" onclick="navigate('dashboard')"><div class="nicon-wrap"><span class="nicon"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg></span></div>Dashboard</button>
+    <button class="nitem" id="nav-lancamentos" onclick="navigate('lancamentos')"><div class="nicon-wrap"><span class="nicon"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></span></div>Lançamentos</button>
+    <button class="nitem" id="nav-simulador" onclick="navigate('simulador')"><div class="nicon-wrap"><span class="nicon"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v6.3a1 1 0 0 1-.17.55L5.2 16.4A2 2 0 0 0 6.9 19.5h10.2a2 2 0 0 0 1.7-3.1l-4.63-7.55A1 1 0 0 1 14 8.3V2"/><path d="M8.5 2h7M6.6 13h10.8"/></svg></span></div>Simular</button>
   </nav>
 </div>
 <!-- DAY MODAL -->
@@ -475,11 +513,11 @@ table.data tr:last-child td{border-bottom:none}
     <div class="modal-title">Adicionar item ao cenário</div>
     <div class="fg"><label class="fl">Tipo</label>
       <select class="fs" id="sit-tipo" onchange="updateSimItemFields()">
-        <option value="parcela">💳 Nova parcela</option>
-        <option value="fixo">📌 Novo gasto fixo</option>
-        <option value="neg_fixo">❌ Cancelar despesa fixa</option>
-        <option value="receita">💰 Receita extra</option>
-        <option value="neg_receita">📉 Redução de receita</option>
+        <option value="parcela">Nova parcela</option>
+        <option value="fixo">Novo gasto fixo</option>
+        <option value="neg_fixo">Cancelar despesa fixa</option>
+        <option value="receita">Receita extra</option>
+        <option value="neg_receita">Redução de receita</option>
       </select>
     </div>
     <div class="fg" id="sit-nome-fg"><label class="fl">Nome</label><input class="fi" id="sit-nome" placeholder="Ex: iPhone, Academia"></div>
@@ -1119,7 +1157,7 @@ function renderDiarioMensal(){
       <div style="font-size:17px;font-weight:700;color:var(--dark)">${MONTHS[diarioMonth-1]} ${diarioYear}</div>
       <button class="btn-icon" onclick="changeDiarioMonth(1)">›</button>
     </div>
-    ${lastUpStr?`<div style="text-align:center;font-size:11px;color:var(--muted);margin-bottom:12px">📌 Última atualização: <b style="color:var(--dark)">${lastUpStr}</b></div>`:''}
+    ${lastUpStr?`<div style="text-align:center;font-size:11px;color:var(--muted);margin-bottom:12px">Última atualização: <b style="color:var(--dark)">${lastUpStr}</b></div>`:''}
     <div class="ovw-grid">
       <div class="ovw-item"><div class="ovw-cat">Receitas${tipBtn('m_rec','Receitas',`<div class="tip-formula">Receita total = soma das receitas do mês</div><div>${fmt(inc)}</div><div class="tip-src">Origem: aba Cashflow, tipo Receita (exclui categoria Rendimentos). Sem lançamentos em mês atual/futuro, usa a linha Receita da aba Planned.</div>`)}</div><div class="ovw-main pos">${fmtN(inc)}</div></div>
       <div class="ovw-item"><div class="ovw-cat">Gastos Fixos${tipBtn('m_fix','Gastos Fixos',`<div class="tip-formula">Efetivado = Σ líquido (gasto − reembolso vinculado)<br>Previsto = fixos do mês anterior projetados</div><div>Efetivado: ${fmt(ftEf)} · Previsto: ${fmt(ftPrevTot)}</div><div class="tip-src">Origem: Cashflow, tipo Despesa, categoria Fixo, no mês ${MONTHS[diarioMonth-1]}/${diarioYear}.</div>`)}</div><div class="ovw-main">${fmtN(ftEf)}</div><div class="ovw-sub">Previsto: ${fmtN(ftPrevTot)}</div></div>
@@ -1212,7 +1250,7 @@ function renderDiarioAnual(){
     fixoGridInner+=`<div class="ay-lbl${alt?' ay-alt':''}" style="font-size:10px">${det}</div>`;
     for(const m of mList){const row=linhas.find(r=>r.nMes===m);if(row){fixoGridInner+=`<div class="ay-cell${alt?' ay-alt':''}${isCurM(m)?' ay-cur':''}"><span class="ay-v">${fmtK(netAbsDisp(row))}</span></div>`;}else if(!isPastM(m)){const est=fixoUltimoValor(det);fixoGridInner+=`<div class="ay-cell${alt?' ay-alt':''}${isCurM(m)?' ay-cur':''}">${est>0?`<span class="ay-v" style="opacity:.4;font-style:italic">${fmtK(est)}</span>`:`<span class="ay-dash">—</span>`}</div>`;}else{fixoGridInner+=`<div class="ay-cell${alt?' ay-alt':''}"><span class="ay-dash">—</span></div>`;}}
   });
-  if(fixoNomes.length){fixoGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(232,223,192,.5)">Total</div>`;for(const m of mList){const tot=estimaFixosMes(m);const isEst=!isPastM(m)&&fixoNomes.some(d=>!fixosAno.find(r=>r.det===d&&r.nMes===m));fixoGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="background:rgba(232,223,192,.5)">${tot>0?`<span class="ay-v" style="font-weight:800${isEst?';opacity:.5;font-style:italic':''}">${fmtK(tot)}</span>`:`<span class="ay-dash">—</span>`}</div>`;}}
+  if(fixoNomes.length){fixoGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(241,233,209,.5)">Total</div>`;for(const m of mList){const tot=estimaFixosMes(m);const isEst=!isPastM(m)&&fixoNomes.some(d=>!fixosAno.find(r=>r.det===d&&r.nMes===m));fixoGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="background:rgba(241,233,209,.5)">${tot>0?`<span class="ay-v" style="font-weight:800${isEst?';opacity:.5;font-style:italic':''}">${fmtK(tot)}</span>`:`<span class="ay-dash">—</span>`}</div>`;}}
   const PBG=['rgba(94,127,68,.2)','rgba(232,130,30,.2)','rgba(61,79,53,.2)','rgba(122,155,92,.2)','rgba(181,146,90,.2)','rgba(192,57,43,.2)'];
   const PFG=['#3D6B30','#a85c0f','#2C3D24','#4a6e2a','#7d5e2a','#8b2519'];
   let parcGridInner='';
@@ -1222,7 +1260,7 @@ function renderDiarioAnual(){
     parcGridInner+=`<div class="ay-lbl" style="font-size:10px">${det}</div>`;
     for(const m of mList){const row=todas.find(r=>r.ano===year&&r.nMes===m);if(row){const idx=todas.findIndex(r=>r.ano===year&&r.nMes===m);const num=idx>=0?idx+1:'?';parcGridInner+=`<div class="ay-cell" style="background:${bg};flex-direction:column;gap:1px"><span class="ay-gantt-num" style="color:${fg}">${num}/${total}</span><span style="font-size:7px;font-weight:600;color:${fg};opacity:.75;position:relative;z-index:1">${fmtK(netAbsDisp(row))}</span></div>`;}else{parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}"><span class="ay-dash" style="opacity:.15">·</span></div>`;}}
   });
-  if(parcNomes.length){parcGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(232,223,192,.45)">Total Parc.</div>`;for(const m of mList){const tot=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+netAbsDisp(r),0);parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="background:rgba(232,223,192,.45)">${tot>0?`<span class="ay-v" style="font-weight:800">${fmtK(tot)}</span>`:`<span class="ay-dash">—</span>`}</div>`;}}
+  if(parcNomes.length){parcGridInner+=`<div class="ay-lbl" style="font-weight:700;font-size:10px;background:rgba(241,233,209,.45)">Total Parc.</div>`;for(const m of mList){const tot=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+netAbsDisp(r),0);parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="background:rgba(241,233,209,.45)">${tot>0?`<span class="ay-v" style="font-weight:800">${fmtK(tot)}</span>`:`<span class="ay-dash">—</span>`}</div>`;}}
 
   // % Comprometido com Fixos + Parcelas
   if(fixoNomes.length||parcNomes.length){
@@ -1326,7 +1364,7 @@ function renderLancarForm(){
       </div>
       <div class="fg"><label class="fl">Data</label><input class="fi" id="l-data" type="date" value="${today}"></div>
       <div class="fg"><label class="fl">Descrição</label><input class="fi" id="l-desc" placeholder="Ex: Pagamento fatura Nubank"></div>
-      <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="lancarTransferencia()">↔ Registrar transferência</button>`;
+      <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="lancarTransferencia()"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg> Registrar transferência</button>`;
   }else if(lancarType==='reembolso'){
     card.innerHTML=`
       <div class="fg"><label class="fl">Conta que recebeu o reembolso</label><select class="fs" id="l-conta">${accountOptions()}</select></div>
@@ -1409,11 +1447,11 @@ function getMoedaConta(nomeOuSelect){
 
 async function lancarGasto(){
   const valor=parseFloat(document.getElementById('l-valor').value);
-  if(lancarType==='ajuste'?isNaN(valor)||valor===0:!valor||valor<=0){toast('⚠ Informe o valor');return}
+  if(lancarType==='ajuste'?isNaN(valor)||valor===0:!valor||valor<=0){toast('Informe o valor');return}
   const desc=document.getElementById('l-desc').value.trim();
-  if(!desc){toast('⚠ Informe a descrição');return}
+  if(!desc){toast('Informe a descrição');return}
   const data=document.getElementById('l-data').value;
-  if(!data){toast('⚠ Informe a data');return}
+  if(!data){toast('Informe a data');return}
   const conta=document.getElementById('l-conta').value||'Nubank';
   const moeda=getMoedaConta(conta);
   const[ano,mes]=data.split('-').map(Number);
@@ -1428,8 +1466,8 @@ async function lancarGasto(){
   if(lancarType==='reembolso'){
     const targetRow=parseInt(document.getElementById('l-reemb-target')?.value||'');
     const target=allData.find(r=>r._row===targetRow);
-    if(!target){toast('⚠ Selecione o gasto original');return}
-    if(moeda===target.moeda&&Math.abs(valor)>Math.abs(target.valor)){toast('⚠ Reembolso maior que o gasto original');return}
+    if(!target){toast('Selecione o gasto original');return}
+    if(moeda===target.moeda&&Math.abs(valor)>Math.abs(target.valor)){toast('Reembolso maior que o gasto original');return}
     let targetId=target.id;
     if(!targetId){targetId=genId();await shUpdate(`Cashflow!J${target._row}`,[[targetId]]);}
     await shAppend('Cashflow!A:J',[[Math.abs(valor),moeda,dataBR,desc,conta,'Reembolso',target.cat,target.subcat,targetId,genId()]]);
@@ -1455,7 +1493,7 @@ async function lancarGasto(){
     toast(`✓ Parcela ${n}x registrada!`);
   }else{
     const cat=document.getElementById('l-cat').value;
-    if(!cat){toast('⚠ Selecione a categoria');return}
+    if(!cat){toast('Selecione a categoria');return}
     const sub=document.getElementById('l-subcat')?.value||'';
     await shAppend('Cashflow!A:J',[[-valor,moeda,dataBR,desc,conta,'Despesa',cat,sub,'',genId()]]);
     toast('✓ Despesa registrada!');
@@ -1467,12 +1505,12 @@ async function lancarGasto(){
 async function lancarTransferencia(){
   const orig=document.getElementById('l-conta-orig').value;
   const dest=document.getElementById('l-conta-dest').value;
-  if(orig===dest){toast('⚠ Contas devem ser diferentes');return}
+  if(orig===dest){toast('Contas devem ser diferentes');return}
   const valorOrig=parseFloat(document.getElementById('l-valor-orig').value);
   const valorDest=parseFloat(document.getElementById('l-valor-dest').value)||valorOrig;
-  if(!valorOrig||valorOrig<=0){toast('⚠ Informe o valor debitado');return}
+  if(!valorOrig||valorOrig<=0){toast('Informe o valor debitado');return}
   const desc=document.getElementById('l-desc').value.trim()||'Transferência';
-  const data=document.getElementById('l-data').value;if(!data){toast('⚠ Data obrigatória');return}
+  const data=document.getElementById('l-data').value;if(!data){toast('Data obrigatória');return}
   const dataBR=isoToBR(data);
   const sub=document.getElementById('l-transf-sub').value;
   const moedaOrig=getMoedaConta(orig);const moedaDest=getMoedaConta(dest);
@@ -1668,7 +1706,7 @@ charts['mensal']=new Chart(document.getElementById('ch-mensal'),{type:'bar',data
     });
     var groupKeys=Object.keys(groupTotals).sort(function(a,b){return groupTotals[b]-groupTotals[a];});
     var groupVals=groupKeys.map(function(k){return groupTotals[k];});
-    var barColors=['#2D5A3D','#3A7D44','#5E7F44','#7A9B5C','#E8821E','#B5925A','#C0392B','#8B6F47'];
+    var barColors=['#1F4633','#3A7D44','#5E7F44','#7A9B5C','#E8821E','#B5925A','#C0392B','#8B6F47'];
 
     // ── ALLOC TABLE DATA ──────────────────────────────────
     var allocTemp=window._allocTemp||'';
@@ -1943,7 +1981,7 @@ function renderLancamentos(){
       <td><span class="badge ${tipoBadge(r.tipo)}">${r.tipo}</span></td>
       <td class="td-muted">${r.conta||'—'}</td>
       <td class="td-muted">${r.moeda}</td>
-      <td class="td-r" style="color:${isReceita(r)?'var(--mid)':isReembolso(r)?'var(--orange)':isTransf(r)||isAjuste(r)?'var(--muted)':'var(--red)'}">${isReceita(r)?'+':isReembolso(r)?'↩':isAjuste(r)?(r.valor>=0?'+':'−'):isTransf(r)?'':' −'}${fmtV(Math.abs(r.valor),r.moeda,r.ano,r.nMes)}</td>
+      <td class="td-r" style="color:${isReceita(r)?'var(--mid)':isReembolso(r)?'var(--orange)':isTransf(r)||isAjuste(r)?'var(--muted)':'var(--red)'}">${isReceita(r)?'+':isReembolso(r)?'':isAjuste(r)?(r.valor>=0?'+':'−'):isTransf(r)?'':' −'}${fmtV(Math.abs(r.valor),r.moeda,r.ano,r.nMes)}</td>
     </tr>`).join('')}${data.length>200?`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:12px">Mostrando 200 de ${data.length}. Refine os filtros.</td></tr>`:''}</tbody>`;
 }
 function sortLt(col){ltSort={col,dir:ltSort.col===col?-ltSort.dir:1};renderLancamentos();}
@@ -1988,8 +2026,8 @@ async function saveEditLancamento(){
   const sub=document.getElementById('ed-subcat').value;
   const tipo=document.getElementById('ed-tipo').value;
   const conta=document.getElementById('ed-conta').value;
-  if(!valorAbs_||valorAbs_<=0){toast('⚠ Valor inválido');return}
-  if(!desc){toast('⚠ Informe a descrição');return}
+  if(!valorAbs_||valorAbs_<=0){toast('Valor inválido');return}
+  if(!desc){toast('Informe a descrição');return}
   const orig=allData.find(d=>d._row===_editRow);
   const moeda=orig?orig.moeda:'BRL';
   // Sign: positive for Receita/Transferência credit, negative for Despesa/Parcela
@@ -2057,17 +2095,17 @@ function renderSimulador(){
 function _renderSimulador(screen){
   const cy=new Date().getFullYear(),cm=new Date().getMonth()+1;
   const tabsHtml=`<div class="sim-tabs-bar"><button class="sim-new-tab" onclick="openNewScenModal()">＋ Novo cenário</button>${sims.map(s=>`<button class="sim-tab${s.id===activeSimId?' active':''}" onclick="setActiveSim('${s.id}')">${s.nome}<span class="sim-item-del" onclick="event.stopPropagation();confirmDeleteScen('${s.id}')">✕</span></button>`).join('')}</div>`;
-  if(!sims.length){screen.innerHTML=tabsHtml+`<div class="sim-empty"><div style="font-size:32px;margin-bottom:10px">🧪</div><div style="font-weight:700;margin-bottom:6px">Nenhum cenário</div><div style="font-size:13px">Crie um cenário para simular impactos no seu patrimônio.</div></div>`;return;}
+  if(!sims.length){screen.innerHTML=tabsHtml+`<div class="sim-empty"><div style="margin-bottom:10px;color:var(--muted)"><svg class="ic" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v6.3a1 1 0 0 1-.17.55L5.2 16.4A2 2 0 0 0 6.9 19.5h10.2a2 2 0 0 0 1.7-3.1l-4.63-7.55A1 1 0 0 1 14 8.3V2"/><path d="M8.5 2h7M6.6 13h10.8"/></svg></div><div style="font-weight:700;margin-bottom:6px">Nenhum cenário</div><div style="font-size:13px">Crie um cenário para simular impactos no seu patrimônio.</div></div>`;return;}
   const scen=getActiveSim();
   const yrHtml=`<div class="sim-yr-bar"><button class="sim-yr-btn${simYear===cy?' active':''}" onclick="setSimYear(${cy})">${cy}</button><button class="sim-yr-btn${simYear===cy+1?' active':''}" onclick="setSimYear(${cy+1})">${cy+1}</button></div>`;
   if(!scen){screen.innerHTML=tabsHtml+yrHtml;return;}
   const itemPillLabel=item=>{
     const range=item.endMes?`${MSHORT[item.startMes-1]}/${String(item.startAno).slice(2)}→${MSHORT[item.endMes-1]}/${String(item.endAno).slice(2)}`:`a partir ${MSHORT[item.startMes-1]}/${String(item.startAno).slice(2)}`;
-    if(item.tipo==='parcela')return`💳 ${item.nome} ${fmt(item.valor)}×${item.numParcelas} a partir ${MSHORT[item.startMes-1]}/${String(item.startAno).slice(2)}`;
-    if(item.tipo==='fixo')return`📌 ${item.nome} ${fmt(item.valor)}/mês ${range}`;
-    if(item.tipo==='neg_fixo')return`❌ −${item.nome} ${fmt(item.valor)}/mês ${range}`;
-    if(item.tipo==='receita')return`💰 +${item.nome} ${fmt(item.valor)}/mês ${range}`;
-    if(item.tipo==='neg_receita')return`📉 −${item.nome} ${fmt(item.valor)}/mês ${range}`;
+    if(item.tipo==='parcela')return`${item.nome} ${fmt(item.valor)}×${item.numParcelas} a partir ${MSHORT[item.startMes-1]}/${String(item.startAno).slice(2)}`;
+    if(item.tipo==='fixo')return`${item.nome} ${fmt(item.valor)}/mês ${range}`;
+    if(item.tipo==='neg_fixo')return`−${item.nome} ${fmt(item.valor)}/mês ${range}`;
+    if(item.tipo==='receita')return`+${item.nome} ${fmt(item.valor)}/mês ${range}`;
+    if(item.tipo==='neg_receita')return`−${item.nome} ${fmt(item.valor)}/mês ${range}`;
     return item.nome||item.tipo;
   };
   const itemsHtml=`<div class="card" style="margin-bottom:12px"><div class="fl-row" style="margin-bottom:${scen.items.length?'10':'0'}px"><div class="card-title" style="margin-bottom:0">Itens do cenário</div><button class="btn btn-sm btn-primary" onclick="openSimItemModal()">＋ Adicionar</button></div>${scen.items.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">${scen.items.map(item=>`<div class="sim-item-pill" style="background:var(--cream);border-color:var(--border);color:var(--text)">${itemPillLabel(item)}<span class="sim-item-del" onclick="deleteSimItem('${item.id}')">✕</span></div>`).join('')}</div>`:`<div style="font-size:13px;color:var(--muted);margin-top:8px">Nenhum item. Clique em ＋ Adicionar.</div>`}</div>`;
@@ -2149,8 +2187,8 @@ function updateSimItemFields(){
 async function saveSimItem(){
   const tipo=document.getElementById('sit-tipo').value;
   const valor=parseFloat(document.getElementById('sit-valor').value)||0;
-  if(!valor){toast('⚠ Informe o valor');return}
-  const nome=document.getElementById('sit-nome').value.trim();if(!nome){toast('⚠ Informe o nome');return}
+  if(!valor){toast('Informe o valor');return}
+  const nome=document.getElementById('sit-nome').value.trim();if(!nome){toast('Informe o nome');return}
   const scen=getActiveSim();if(!scen)return;
   const cy=new Date().getFullYear(),cm=new Date().getMonth()+1;
   const item={id:String(Date.now()),tipo,valor,nome};
@@ -2206,7 +2244,7 @@ const colLetter=i=>String.fromCharCode(65+i);
 async function saveAcctBase(row){
   const saldoEl=document.getElementById('cfg-saldo-'+row);
   const baseEl=document.getElementById('cfg-base-'+row);
-  if(!saldoEl||!window._acctCols||window._acctCols.saldo<0){toast('⚠ Coluna de saldo não encontrada');return}
+  if(!saldoEl||!window._acctCols||window._acctCols.saldo<0){toast('Coluna de saldo não encontrada');return}
   const saldo=parseFloat(saldoEl.value)||0;
   await shUpdate(`Accounts!${colLetter(window._acctCols.saldo)}${row}`,[[saldo]]);
   if(baseEl&&window._acctCols.dataBase>=0&&baseEl.value){
@@ -2264,7 +2302,7 @@ function showApp(){['setup-screen','login-screen','loading-screen'].forEach(id=>
 function saveSetup(){
   const c=document.getElementById('s-clientid').value.trim();
   const s=document.getElementById('s-sheetid').value.trim();
-  if(!c||!s){toast('⚠ Preencha os dois campos');return}
+  if(!c||!s){toast('Preencha os dois campos');return}
   APP={clientId:c,spreadsheetId:s};
   localStorage.setItem('finCfg',JSON.stringify(APP));
   initAuth();showLogin();
@@ -2272,7 +2310,7 @@ function saveSetup(){
 
 function showExportConfig(){
   const cfg=JSON.parse(localStorage.getItem('finCfg')||'{}');
-  if(!cfg.clientId||!cfg.spreadsheetId){toast('⚠ Configuração não encontrada');return}
+  if(!cfg.clientId||!cfg.spreadsheetId){toast('Configuração não encontrada');return}
   const base=window.location.origin+window.location.pathname;
   const url=`${base}?c=${encodeURIComponent(cfg.clientId)}&s=${encodeURIComponent(cfg.spreadsheetId)}`;
   document.getElementById('export-url-display').textContent=url;
