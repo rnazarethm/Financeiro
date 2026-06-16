@@ -1795,7 +1795,7 @@ function renderInvestimentos(){
     var now2=new Date();var ny=now2.getFullYear(),nm=now2.getMonth()+1;
     var invAccts=accounts.filter(function(a){return a.status==='Ativo'&&a.tipo==='Investimento';});
     var opAccts=accounts.filter(function(a){return a.status==='Ativo'&&a.tipo!=='Investimento';});
-    function dispBal(a){return a.tipo==='Investimento'?(latestSnapshot(a.nome)?latestSnapshot(a.nome).saldo:0):toDisplay(getAccountBalance(a.nome),a.moeda,ny,nm);}
+    function dispBal(a){var sn=latestSnapshot(a.nome);return sn?sn.saldo:0;}
     var totalInv=invAccts.reduce(function(s,a){return s+dispBal(a);},0);
     var totalOp=opAccts.reduce(function(s,a){return s+dispBal(a);},0);
     var totalRF=invAccts.filter(function(a){return a.rfRv==='RF';}).reduce(function(s,a){return s+dispBal(a);},0);
@@ -1828,7 +1828,7 @@ function renderInvestimentos(){
     var ext_RF   =aSum(function(a){return a.brExt==='EXT'&&a.rfRv==='RF';});
     var ext_RV   =aSum(function(a){return a.brExt==='EXT'&&a.rfRv==='RV';});
     var tot_RF   =brIPCA_RF+brCDI_RF+ext_RF;
-    var tot_RV   =brIPCA_RV+brCDI_RV+ext_RV;
+    var tot_RV   =aSum(function(a){return a.brExt==='BR'&&a.rfRv==='RV';})+ext_RV;
     var tot_ALL  =tot_RF+tot_RV;
     function aPct(v){return tot_ALL>0?Math.round(v/tot_ALL*100):0;}
     function aDiff(pct,ideal){if(!ideal)return'';if(pct>ideal+3)return'color:var(--red)';if(pct<ideal-3)return'color:#2563eb';return'color:var(--mid)';}
@@ -1869,7 +1869,7 @@ function renderInvestimentos(){
       +'</tr></thead>'
       +'<tbody>'
       +(function(){
-        var brRV=brIPCA_RV+brCDI_RV;
+        var brRV=aSum(function(a){return a.brExt==='BR'&&a.rfRv==='RV';});
         var totalBRall=brIPCA_RF+brCDI_RF+brRV;
         var p1=aPct(brIPCA_RF),p2=aPct(brCDI_RF),pRV=aPct(brRV);
         return '<tr>'
@@ -1913,8 +1913,7 @@ function renderInvestimentos(){
       var opRows2='',invRows2='';
       accts2.filter(function(a){return a.tipo!=='Investimento';}).forEach(function(a){
         var balOp=dispBal(a);
-        var needsBase=!a.dataBase&&balOp<-500;
-        opRows2+='<div class="bank-acct"><div><span style="font-weight:500">'+a.nome+'</span><span class="acct-badge">'+a.tipo+'</span>'+(isOperacional(a)?'<span class="acct-badge" style="background:#e6e6e3;color:#777">Operacional</span>':'')+(needsBase?'<span class="acct-badge" style="background:#fef3cd;color:#856404" title="Saldo pode estar distorcido — configure a Data-Base na aba Config">⚠ DataBase</span>':'')+'</div>';
+        opRows2+='<div class="bank-acct"><div><span style="font-weight:500">'+a.nome+'</span><span class="acct-badge">'+a.tipo+'</span>'+(isOperacional(a)?'<span class="acct-badge" style="background:#e6e6e3;color:#777">Operacional</span>':'')+'</div>';
         opRows2+='<span style="font-weight:700;color:'+(balOp>=0?'var(--mid)':'var(--red)')+'">'+fmt(balOp)+'</span></div>';
       });
       accts2.filter(function(a){return a.tipo==='Investimento';}).forEach(function(a){
@@ -1984,8 +1983,8 @@ function renderInvestimentos(){
     var evoAcctDatasets=invAccts.map(function(a,i){return{label:a.nome,data:pMonths.map(function(m){return snapshotAt(a.nome,m);}),backgroundColor:evoBarColors[i%evoBarColors.length],borderRadius:4,stack:'s'};});
     var invEvoHTML=pMonths.length?('<div class="card"><div class="card-title">Evolução do patrimônio</div><div class="chart-box" style="height:200px"><canvas id="ch-inv-evo"></canvas></div></div>'):'<div class="card" style="text-align:center;color:var(--muted);font-size:13px;padding:20px">Sem snapshots de patrimônio ainda. Use o formulário abaixo para registrar o primeiro saldo.</div>';
     var nowYM=(new Date()).toISOString().slice(0,7);
-    var snapAcctOpts=invAccts.map(function(a){return'<option value="'+a.nome+'">'+a.nome+'</option>';}).join('');
-    var latestList=invAccts.map(function(a){var sn=latestSnapshot(a.nome);return'<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)"><span>'+a.nome+'</span><span style="font-weight:600">'+(sn?(fmt(sn.saldo)+' <span style="color:var(--muted);font-size:10px">'+sn.mes+'</span>'):'<span style="color:var(--muted)">—</span>')+'</span></div>';}).join('');
+    var snapAcctOpts=accounts.filter(function(a){return a.status==='Ativo';}).map(function(a){return'<option value="'+a.nome+'">'+a.nome+(a.tipo!=='Investimento'?' (operacional)':'')+'</option>';}).join('');
+    var latestList=invAccts.concat(opAccts).map(function(a){var sn=latestSnapshot(a.nome);return'<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)"><span>'+a.nome+'</span><span style="font-weight:600">'+(sn?(fmt(sn.saldo)+' <span style="color:var(--muted);font-size:10px">'+sn.mes+'</span>'):'<span style="color:var(--muted)">—</span>')+'</span></div>';}).join('');
     var invFormHTML='<div class="card"><div class="card-title">Atualizar saldo (snapshot mensal)</div><div class="fi-row"><select class="fs" id="snap-acct">'+snapAcctOpts+'</select><input class="fi" type="month" id="snap-mes" value="'+nowYM+'"></div><input class="fi" type="number" id="snap-val" placeholder="Saldo atual (R$)" style="margin-top:8px"><button class="btn btn-primary btn-block" style="margin-top:10px" onclick="saveSnapshotForm()">Salvar saldo</button><div style="font-size:11px;color:var(--muted);margin:10px 0 4px">Último registro por conta</div>'+latestList+'</div>';
     var aporteM=aporteMensal(ny,nm);
     var tipInv=tipBtn('i_tot','Total investido','<div class="tip-formula">Total = Σ último snapshot de cada conta de Investimento</div><div>'+fmt(totalInv)+'</div><div class="tip-src">Origem: aba Patrimônio (snapshots mensais). Metadados (RF/RV, subtipo) vêm de Accounts.</div>');
@@ -2470,102 +2469,6 @@ window.addEventListener('load',async()=>{
   if(urlC&&urlS){
     history.replaceState({},'',window.location.pathname);
     document.getElementById('s-clientid').value=decodeURIComponent(urlC);
-    document.getElementById('s-sheetid').value=decodeURIComponent(urlS);
-    showSetup();return;
-  }
-  const saved=localStorage.getItem('finCfg');
-  if(!saved){showSetup();return;}
-  try{
-    APP=JSON.parse(saved);
-    initAuth();
-    const savedToken=localStorage.getItem('finToken');
-    const savedExp=parseInt(localStorage.getItem('finTokenExp')||'0');
-    if(savedToken&&savedExp>Date.now()+120000){
-      token=savedToken;showLoading();
-      try{await loadAllData();showApp();}
-      catch(e){if(e.message!=='401'){clearToken();showLogin();}}
-    }else{clearToken();showLogin();}
-  }catch(e){showSetup();}
-});
-</script>
-</body>
-</html>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              ');
-  if(el)el.textContent=titles[screen]||'Finanças';
-  activeScreen=screen;renderScreen(screen);
-}
-function renderScreen(s){
-  if(s==='diario')renderDiario();
-  else if(s==='lancar')initLancar();
-  else if(s==='dashboard')renderDashboard();
-  else if(s==='investimentos')renderInvestimentos();
-  else if(s==='lancamentos')renderLancamentos();
-  else if(s==='simulador')renderSimulador();
-  else if(s==='config')renderConfig();
-}
-
-// ══════════════════════════════════════════════════════
-// SCREEN VISIBILITY
-// ══════════════════════════════════════════════════════
-function showSetup(){['setup-screen','login-screen','loading-screen'].forEach((id,i)=>document.getElementById(id).style.display=i===0?'flex':'none');document.getElementById('app').style.display='none';}
-function showLogin(){['setup-screen','login-screen','loading-screen'].forEach((id,i)=>document.getElementById(id).style.display=i===1?'flex':'none');document.getElementById('app').style.display='none';}
-function showLoading(){['setup-screen','login-screen','loading-screen'].forEach((id,i)=>document.getElementById(id).style.display=i===2?'flex':'none');document.getElementById('app').style.display='none';}
-function showApp(){['setup-screen','login-screen','loading-screen'].forEach(id=>document.getElementById(id).style.display='none');document.getElementById('app').style.display='block';navigate('diario');}
-
-// ══════════════════════════════════════════════════════
-// SETUP & EXPORT
-// ══════════════════════════════════════════════════════
-function saveSetup(){
-  const c=document.getElementById('s-clientid').value.trim();
-  const s=document.getElementById('s-sheetid').value.trim();
-  if(!c||!s){toast('Preencha os dois campos');return}
-  APP={clientId:c,spreadsheetId:s};
-  localStorage.setItem('finCfg',JSON.stringify(APP));
-  initAuth();showLogin();
-}
-
-function showExportConfig(){
-  const cfg=JSON.parse(localStorage.getItem('finCfg')||'{}');
-  if(!cfg.clientId||!cfg.spreadsheetId){toast('Configuração não encontrada');return}
-  const base=window.location.origin+window.location.pathname;
-  const url=`${base}?c=${encodeURIComponent(cfg.clientId)}&s=${encodeURIComponent(cfg.spreadsheetId)}`;
-  document.getElementById('export-url-display').textContent=url;
-  const qrSrc=`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}&bgcolor=FDFAF4&color=3D4F35&margin=10`;
-  document.getElementById('export-qr').innerHTML=`<img src="${qrSrc}" style="width:220px;height:220px;border-radius:10px;border:1px solid var(--border)" onerror="this.outerHTML='<div style=\\'font-size:12px;color:var(--muted);padding:20px\\'>QR indisponível — copie o link abaixo</div>'">`;
-  document.getElementById('export-modal').classList.remove('hidden');
-}
-function closeExportModal(e){if(e&&e.target===document.getElementById('export-modal'))document.getElementById('export-modal').classList.add('hidden');}
-
-// ══════════════════════════════════════════════════════
-// INIT
-// ══════════════════════════════════════════════════════
-window.addEventListener('load',async()=>{
-  const params=new URLSearchParams(window.location.search);
-  const urlC=params.get('c'),urlS=params.get('s');
-  if(urlC&&urlS){
-    history.replaceState({},'',window.location.pathname);
-    document.getElementById('s-clientid').value=decodeURIComponent(urlC);
-    document.getElementById('s-sheetid').value=decodeURIComponent(urlS);
-    showSetup();return;
-  }
-  const saved=localStorage.getItem('finCfg');
-  if(!saved){showSetup();return;}
-  try{
-    APP=JSON.parse(saved);
-    initAuth();
-    const savedToken=localStorage.getItem('finToken');
-    const savedExp=parseInt(localStorage.getItem('finTokenExp')||'0');
-    if(savedToken&&savedExp>Date.now()+120000){
-      token=savedToken;showLoading();
-      try{await loadAllData();showApp();}
-      catch(e){if(e.message!=='401'){clearToken();showLogin();}}
-    }else{clearToken();showLogin();}
-  }catch(e){showSetup();}
-});
-</script>
-</body>
-</html>
-ment.getElementById('s-clientid').value=decodeURIComponent(urlC);
     document.getElementById('s-sheetid').value=decodeURIComponent(urlS);
     showSetup();return;
   }
