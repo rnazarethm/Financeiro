@@ -1234,8 +1234,7 @@ function renderDiarioMensal(){
     if(d<=cutoff){_cum+=daySpend(isoD);realCum.push(+_cum.toFixed(2));}else realCum.push(null);
   }
   const realToday=cutoff>0?(realCum[cutoff-1]||0):0;
-  const avgSoFar=cutoff>0?realToday/cutoff:dailyLim;
-  for(let d=1;d<=dias;d++){trendCum.push(d<=cutoff?realCum[d-1]:+(realToday+avgSoFar*(d-cutoff)).toFixed(2));}
+  for(let d=1;d<=dias;d++){trendCum.push(d<=cutoff?realCum[d-1]:+(realToday+dailyLim*(d-cutoff)).toFixed(2));}
   const lastUp=lastUpdatedDate();
   const lastUpStr=lastUp?(()=>{const[ly,lm,ld]=lastUp.split('-').map(Number);return`${ld} ${MSHORT[lm-1]} ${ly}`})():null;
 
@@ -1283,7 +1282,7 @@ function renderDiarioMensal(){
       </div>
       <div class="cal-grid">${calCells}</div>
     </div>
-    <div class="card"><div class="card-title">Gasto acumulado — dia a dia${tipBtn('m_acum','Gasto acumulado — dia a dia','<div class="tip-formula"><b>Real</b> = Σ gastos diários acumulados até hoje (tipo Despesa, categoria ≠ Fixo)</div><div class="tip-formula"><b>Tendência</b> = gasto acumulado até hoje + (média diária até hoje × dias restantes no mês)</div><div class="tip-formula"><b>Limite</b> = limite diário × dia do mês (linha reta de referência)</div><div class="tip-src">Limite diário: aba Planned, linha Diário (padrão R$60). Tendência aparece somente no mês atual.</div>')}</div><div class="chart-box" style="height:200px"><canvas id="ch-diario-acum"></canvas></div><div style="font-size:10px;color:var(--muted);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap"><span><span style="color:var(--mid)">●</span> Real</span>${isCurMonth?'<span><span style="color:var(--orange)">●</span> Tendência</span>':''}<span><span style="color:rgba(0,0,0,.35)">●</span> Limite</span></div></div>`;
+    <div class="card"><div class="card-title">Gasto acumulado — dia a dia${tipBtn('m_acum','Gasto acumulado — dia a dia','<div class="tip-formula"><b>Real</b> = Σ gastos diários acumulados até hoje (tipo Despesa, categoria ≠ Fixo)</div><div class="tip-formula"><b>Tendência</b> = gasto acumulado até hoje + (limite diário × dias restantes no mês)</div><div class="tip-formula"><b>Limite</b> = limite diário × dia do mês (linha reta de referência)</div><div class="tip-src">Limite diário: aba Planned, linha Diário (padrão R$60). Tendência aparece somente no mês atual.</div>')}</div><div class="chart-box" style="height:200px"><canvas id="ch-diario-acum"></canvas></div><div style="font-size:10px;color:var(--muted);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap"><span><span style="color:var(--mid)">●</span> Real</span>${isCurMonth?'<span><span style="color:var(--orange)">●</span> Tendência</span>':''}<span><span style="color:rgba(0,0,0,.35)">●</span> Limite</span></div></div>`;
   destroyChart('diario-acum');
   {
     const ctxA=document.getElementById('ch-diario-acum');
@@ -1333,7 +1332,7 @@ function renderDiarioAnual(){
   const parcNomes=[...new Set(allParcDB.filter(r=>r.ano===year).map(r=>r.det))];
   const fixoUltimoValor=det=>{const rows=allData.filter(r=>r.tipo==='Despesa'&&r.cat==='Fixo'&&r.det===det).sort((a,b)=>b.ano*12+b.nMes-(a.ano*12+a.nMes));return rows.length?netAbsDisp(rows[0]):0;};
   const estimaFixosMes=m=>{const rows=fixosAno.filter(r=>r.nMes===m);if(isPastM(m))return rows.reduce((s,r)=>s+netAbsDisp(r),0);if(!rows.length)return fixoNomes.reduce((s,det)=>s+fixoUltimoValor(det),0);return fixoNomes.reduce((s,det)=>{const r=rows.find(row=>row.det===det);return s+(r?netAbsDisp(r):fixoUltimoValor(det));},0);};
-  const totalExpEstimado=m=>{const fixEst=estimaFixosMes(m);const parcEst=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+netAbsDisp(r),0);return fixEst+parcEst+dailyLim*daysInMonth(year,m);};
+  const totalExpEstimado=m=>{if(isPastM(m))return totMesDisp(year,m);const fixEst=estimaFixosMes(m);const parcEst=allParcDB.filter(r=>r.ano===year&&r.nMes===m).reduce((s,r)=>s+netAbsDisp(r),0);if(isCurM(m)){const rem=daysInMonth(year,m)-today.getDate();return totMesDisp(year,m)+dailyLim*rem;}return fixEst+parcEst+dailyLim*daysInMonth(year,m);};
   let anoRec=0,anoDesp=0;
   for(let m=1;m<=12;m++){if(hasDataM(m)){anoRec+=incomeForMonth(year,m);anoDesp+=totMesDisp(year,m);}}
   const anoEcon=anoRec>0?(anoRec-anoDesp)/anoRec:0;
@@ -1402,7 +1401,7 @@ function renderDiarioAnual(){
   let runEcon=0;const econAcum={};
   for(let m=1;m<=12;m++){runEcon+=incomeForMonth(year,m)-totalExpEstimado(m);econAcum[m]=runEcon;}
   const tSaldo=tipBtn('a_saldo','Saldo (anual)',`<div class="tip-formula">Saldo do mês = Receita do mês − Despesa total do mês</div><div class="tip-src">Receita: Cashflow tipo Receita (ou previsão da aba Planned para meses futuros). Despesa: gasto líquido real em meses passados; estimativa (fixos projetados + parcelas + dia a dia) no mês atual e futuros.</div>`);
-  const tDesp=tipBtn('a_desp','Despesa (anual)',`<div class="tip-formula">Projeção completa (todos os meses):<br>Fixos do mês + Parcelas do mês + (limite diário × dias do mês)</div><div class="tip-src">Origem: Cashflow + limite diário (Planned). Sempre projeção, nunca o realizado parcial do mês.</div>`);
+  const tDesp=tipBtn('a_desp','Despesa (anual)',`<div class="tip-formula">Meses passados: gasto efetivo total do mês</div><div class="tip-formula">Mês atual: gasto efetivo acumulado + (limite diário × dias restantes)</div><div class="tip-formula">Meses futuros: Fixos estimados + Parcelas + (limite diário × dias do mês)</div><div class="tip-src">Origem: Cashflow + limite diário (Planned).</div>`);
   const tEcA=tipBtn('a_eca','Economia acumulada',`<div class="tip-formula">Ec.Acum.(mês) = Σ saldos de Janeiro até o mês</div><div class="tip-src">Soma corrente dos saldos mensais (receita − despesa) do ano ${year}.</div>`);
   const tPctE=tipBtn('a_pct','% Economia',`<div class="tip-formula">% Econ. = (Receita − Despesa) ÷ Receita</div><div class="tip-src">Verde quando ≥ 25%. Negativo indica gastos maiores que a receita no mês.</div>`);
   const tEnt=tipBtn('a_ent','Entradas (anual)',`<div class="tip-formula">Entradas do mês = Σ Cashflow tipo Receita (exclui categoria Rendimentos)</div><div class="tip-src">Meses futuros usam fallback da linha Receita na aba Planned.</div>`);
