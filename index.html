@@ -5,13 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finanças v2</title>
 <link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#1F4633">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Finanças">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-<script src="https://accounts.google.com/gsi/client"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script defer src="https://accounts.google.com/gsi/client"></script>
 <style>
 :root{
   --dark:#1F4633;--mid:#3A7D44;--action:#1F4633;--pos:#3A7D44;
@@ -664,6 +665,11 @@ function toggleCurrency(){
 // GOOGLE AUTH
 // ══════════════════════════════════════════════════════
 function initAuth(){
+  if(!(window.google&&google.accounts&&google.accounts.oauth2)){
+    // Script do Google ainda não carregou (comum em PWA standalone no cold start) — tenta de novo em breve
+    setTimeout(initAuth,300);
+    return;
+  }
   tokenClient=google.accounts.oauth2.initTokenClient({
     client_id:APP.clientId,
     scope:'https://www.googleapis.com/auth/spreadsheets',
