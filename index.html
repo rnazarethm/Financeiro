@@ -362,6 +362,14 @@ svg.ic{vertical-align:-3px}
 /* Fase 7 — dia a dia projetado (anual) */
 .ay-hm-c.ay-hm-proj{background:rgba(58,125,68,.10)}
 .ay-hm-dot.ay-hm-proj{background:rgba(58,125,68,.45)}
+.daily-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.daily-tbl th{text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:4px 4px;border-bottom:1px solid var(--border)}
+.daily-tbl td{padding:7px 4px;border-bottom:1px solid var(--border)}
+.daily-tbl .daily-val{text-align:right;font-weight:600}
+.daily-dow{color:var(--muted);font-size:10px;margin-left:4px}
+.daily-row.today{background:rgba(31,70,51,.08);font-weight:700}
+.daily-row.future{opacity:.5;font-style:italic}
+.daily-row[onclick]{cursor:pointer}
 </style>
 </head>
 <body>
@@ -1146,26 +1154,27 @@ function renderDiarioMensal(){
   const parcDB=parcelasDoMes(diarioYear,diarioMonth);
   const pt=parcDB.reduce((s,r)=>s+netAbsDisp(r),0);
 
-  // Calendar cells (only daySpend = Despesa & cat!==Fixo)
-  let calCells='';
-  ['D','S','T','Q','Q','S','S'].forEach(d=>{calCells+=`<div class="cal-dow">${d}</div>`;});
-  for(let i=0;i<firstDOW;i++)calCells+=`<div class="cal-day empty"></div>`;
+  // Daily table rows (only daySpend = Despesa & cat!==Fixo) -- trocado de calendario p/ tabela em 2026-09-05
+  const DOWNAMES=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  let dayRows='';
   let dailyReal=0,dailyFut=0,realizedBefore=0,projDays=0;
   for(let d=1;d<=dias;d++){
     const iso=`${diarioYear}-${String(diarioMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday=iso===todayStr;
     const isPast=new Date(diarioYear,diarioMonth-1,d)<=today;
-    let val=0,cls='future',hasData=false;
-    if(isPast){val=daySpend(iso);dailyReal+=val;cls=isToday?'today':'past';hasData=val>0;if(isToday)projDays++;else realizedBefore+=val;}
-    else{val=dailyLim;dailyFut+=val;projDays++;}
-    const overLim=isPast&&!isToday&&val>dailyLim;
-    const underLim=isPast&&!isToday&&val>0&&val<=dailyLim;
-    let extra='';
-    if(overLim)extra='border-color:rgba(192,57,43,.5);background:rgba(192,57,43,.08)';
-    else if(underLim)extra='border-color:rgba(58,125,68,.4);background:rgba(58,125,68,.08)';
-    else if(isPast&&!isToday&&val===0)extra='background:rgba(0,0,0,.05);border-color:transparent;color:var(--muted)';
-    calCells+=`<div class="cal-day ${cls}${hasData?' has-data':''}" style="${extra}" ${hasData?`onclick="openDayModal('${iso}','${d} de ${MONTHS[diarioMonth-1]}')"`:''}>
-      <div class="cal-num">${d}</div>${(isPast&&val>0)||!isPast?`<div class="cal-val" style="${!isPast?'opacity:.3':''}">${Math.round(val).toLocaleString('pt-BR')}</div>`:''}</div>`;
+    const dow=DOWNAMES[new Date(diarioYear,diarioMonth-1,d).getDay()];
+    let val=0,hasData=false,statusTxt='',statusColor='var(--muted)',rowCls='';
+    if(isPast){
+      val=daySpend(iso);dailyReal+=val;hasData=val>0;
+      if(isToday){rowCls='today';projDays++;statusTxt='Hoje';statusColor='var(--dark)';}
+      else{
+        realizedBefore+=val;
+        if(val>dailyLim){statusTxt='Acima';statusColor='var(--red)';}
+        else if(val>0){statusTxt='Ok';statusColor='var(--mid)';}
+        else{statusTxt='Sem gasto';statusColor='var(--muted)';}
+      }
+    }else{val=dailyLim;dailyFut+=val;projDays++;rowCls='future';statusTxt='Previsto';statusColor='var(--muted)';}
+    dayRows+=`<tr class="daily-row ${rowCls}"${hasData?` onclick="openDayModal('${iso}','${d} de ${MONTHS[diarioMonth-1]}')"`:''}><td>${d} <span class="daily-dow">${dow}</span></td><td class="daily-val">${fmt(val)}</td><td style="color:${statusColor};font-weight:700">${statusTxt}</td></tr>`;
   }
 
   const totalDesp=ft+pt+dailyReal;
@@ -1278,15 +1287,15 @@ function renderDiarioMensal(){
     </div>
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Calendário</div>
-        <div style="font-size:11px;color:var(--muted)"><span style="color:var(--mid)">■</span> &le;${fmt(dailyLim)}&nbsp;&nbsp;<span style="color:var(--red)">■</span> acima&nbsp;&nbsp;<span style="color:rgba(0,0,0,.25)">■</span> sem gasto</div>
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Gasto por dia</div>
+        <div style="font-size:11px;color:var(--muted)"><span style="color:var(--mid)">●</span> &le;${fmt(dailyLim)}&nbsp;&nbsp;<span style="color:var(--red)">●</span> acima&nbsp;&nbsp;<span style="color:var(--muted)">●</span> sem gasto</div>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:8px;padding:8px 10px;background:var(--bg);border-radius:8px">
         <span>Real: <b style="color:var(--text)">${fmt(dailyReal)}</b></span>
         <span>Previsto: <b style="color:var(--dark)">${fmt(dailyReal+dailyFut)}</b></span>
         <span>Dias rest.: <b>${projDays}</b></span>
       </div>
-      <div class="cal-grid">${calCells}</div>
+      <table class="daily-tbl"><thead><tr><th>Dia</th><th>Gasto</th><th>Status</th></tr></thead><tbody>${dayRows}</tbody></table>
     </div>
     <div class="card"><div class="card-title">Gasto acumulado — dia a dia${tipBtn('m_acum','Gasto acumulado — dia a dia','<div class="tip-formula"><b>Real</b> = Σ gastos diários acumulados até hoje (tipo Despesa, categoria ≠ Fixo)</div><div class="tip-formula"><b>Tendência</b> = gasto acumulado até hoje + (limite diário × dias restantes no mês)</div><div class="tip-formula"><b>Limite</b> = limite diário × dia do mês (linha reta de referência)</div><div class="tip-src">Limite diário: aba Planned, linha Diário (padrão R$60). Tendência aparece somente no mês atual.</div>')}</div><div class="chart-box" style="height:200px"><canvas id="ch-diario-acum"></canvas></div><div style="font-size:10px;color:var(--muted);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap"><span><span style="color:var(--mid)">●</span> Real</span>${isCurMonth?'<span><span style="color:var(--orange)">●</span> Tendência</span>':''}<span><span style="color:rgba(0,0,0,.35)">●</span> Limite</span></div></div>`;
   destroyChart('diario-acum');
@@ -1381,29 +1390,32 @@ function renderDiarioAnual(){
       parcGridInner+=`<div class="ay-cell${isCurM(m)?' ay-cur':''} " style="background:rgba(61,79,53,.09)">${hasV?`<span class="ay-v" style="color:${col2};font-weight:800">${pct2}%</span>`:'<span class="ay-dash">-</span>'}</div>`;
     }
   }
-    // Heatmap
-  let hmHTML='<div class="ay-hm-grid">';
-  for(let m=1;m<=12;m++){
-    const dias=daysInMonth(year,m);const firstDOW=new Date(year,m-1,1).getDay();
-    let dc='';let nOk=0,nOver=0,nNone=0,totalPast=0,realizedPart=0,projDaysM=0;
-    ['D','S','T','Q','Q','S','S'].forEach(d=>{dc+=`<div class="ay-hm-dow">${d}</div>`;});
-    for(let i=0;i<firstDOW;i++)dc+=`<div class="ay-hm-c ay-hm-empty"></div>`;
-    for(let d=1;d<=dias;d++){
-      const mm=String(m).padStart(2,'0'),dd_=String(d).padStart(2,'0');
-      const iso=`${year}-${mm}-${dd_}`;const isToday_=iso===todayStr;
-      const isPastDay=new Date(year,m-1,d)<=today;
-      if(isPastDay){totalPast++;const val=daySpend(iso);let cls='ay-hm-c ';
-        if(isToday_){cls+='ay-hm-today';projDaysM++;}else{realizedPart+=val;if(val>dailyLim){cls+='ay-hm-over';nOver++;}else if(val>0){cls+='ay-hm-ok';nOk++;}else{cls+='ay-hm-none';nNone++;}}
-        const hasSpend=val>0;const numCls=(!isToday_&&!hasSpend)?'dark':'';
-        dc+=`<div class="${cls}"${hasSpend?` onclick="openDayModal('${iso}','${d} de ${MONTHS[m-1]}')" style="cursor:pointer"`:''} title="${d}/${m}"><span class="ay-hm-num ${numCls}">${d}</span></div>`;
-      }else{projDaysM++;dc+=`<div class="ay-hm-c ay-hm-proj" title="projetado ${fmt(dailyLim)}"><span class="ay-hm-num dark">${d}</span></div>`;}
+    // Diario -- grade mensal (substituiu o heatmap por dia em 2026-09-05, ver MEMORY.md)
+  let hmHTML='';
+  {
+    const diaCells=[],overCells=[];
+    for(let m=1;m<=12;m++){
+      const diasM=daysInMonth(year,m);
+      let realizedPart=0,projDaysM=0,nOver=0;
+      for(let d=1;d<=diasM;d++){
+        const mm=String(m).padStart(2,'0'),dd_=String(d).padStart(2,'0');
+        const iso=`${year}-${mm}-${dd_}`;const isToday_=iso===todayStr;
+        const isPastDay=new Date(year,m-1,d)<=today;
+        if(isPastDay){
+          const val=daySpend(iso);
+          if(isToday_){projDaysM++;}else{realizedPart+=val;if(val>dailyLim)nOver++;}
+        }else{projDaysM++;}
+      }
+      const projTot=realizedPart+dailyLim*projDaysM;
+      const isProjM=!isPastM(m);
+      const diaColor=projTot>dailyLim*diasM?'var(--red)':'var(--mid)';
+      diaCells.push(`<div class="ay-cell${isCurM(m)?' ay-cur':''}">${projTot>0?`<span class="ay-v" style="color:${diaColor}${isProjM?';opacity:.55;font-style:italic':''}">${fmtK(projTot)}</span>`:'<span class="ay-dash">—</span>'}</div>`);
+      overCells.push(`<div class="ay-cell ay-alt${isCurM(m)?' ay-cur':''}">${nOver>0?`<span class="ay-v" style="color:var(--red)">${nOver}</span>`:'<span class="ay-dash">—</span>'}</div>`);
     }
-    const projTot=realizedPart+dailyLim*projDaysM;
-    const isProjM=!isPastM(m);
-    const diaColor=projTot>dailyLim*daysInMonth(year,m)?'var(--red)':'var(--mid)';
-    hmHTML+=`<div class="ay-hm-month${isCurM(m)?' ay-hm-curm':''}"><div class="ay-hm-name">${MSHORT[m-1]}</div>${projTot>0?`<div style="font-size:7px;font-weight:700;text-align:center;color:${diaColor};margin-bottom:2px${isProjM?';opacity:.55;font-style:italic':''}">${fmtK(projTot)}</div>`:''}<div class="ay-hm-days">${dc}</div></div>`;
+    const diaRow=`<div class="ay-lbl" style="font-size:10px">Dia a Dia</div>`+mList.map(m=>diaCells[m-1]).join('');
+    const overRow=`<div class="ay-lbl ay-alt" style="font-size:10px">Dias acima do limite</div>`+mList.map(m=>overCells[m-1]).join('');
+    hmHTML=`<div class="ay-grid" style="grid-template-columns:${gridCols}">${gridHdr}${diaRow}${overRow}</div>`;
   }
-  hmHTML+=`</div><div class="ay-hm-leg"><span><span class="ay-hm-dot ay-hm-ok"></span>ok</span><span><span class="ay-hm-dot ay-hm-over"></span>alto</span><span><span class="ay-hm-dot ay-hm-none"></span>sem gasto</span><span><span class="ay-hm-dot ay-hm-proj"></span>projetado</span></div>`;
   let runEcon=0;const econAcum={};
   for(let m=1;m<=12;m++){runEcon+=incomeForMonth(year,m)-totalExpEstimado(m);econAcum[m]=runEcon;}
   const tSaldo=tipBtn('a_saldo','Saldo (anual)',`<div class="tip-formula">Saldo do mês = Receita do mês − Despesa total do mês</div><div class="tip-src">Receita: Cashflow tipo Receita (ou previsão da aba Planned para meses futuros). Despesa: gasto líquido real em meses passados; estimativa (fixos projetados + parcelas + dia a dia) no mês atual e futuros.</div>`);
