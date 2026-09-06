@@ -303,6 +303,7 @@ table.data tr:last-child td{border-bottom:none}
 .ovw-sub{font-size:10px;color:var(--muted);margin-top:3px;font-weight:600;white-space:nowrap}
 .ovw-item.accent .ovw-sub{color:rgba(255,255,255,.7)}
 @media(max-width:700px){.ovw-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:700px){.daily-cols{grid-template-columns:1fr;gap:4px}}
 /* ── INFO TIP (transparência dos cálculos) ──────────── */
 .tip-btn{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(0,0,0,.08);color:var(--muted);font-size:9px;font-weight:700;cursor:pointer;margin-left:5px;vertical-align:middle;user-select:none;font-style:italic;font-family:Georgia,serif;flex-shrink:0}
 .tip-btn:hover{background:var(--dark);color:#fff}
@@ -376,6 +377,12 @@ svg.ic{vertical-align:-3px}
 .daily-details summary::before{content:'▸ ';display:inline-block;transition:transform .15s}
 .daily-details[open] summary::before{transform:rotate(90deg)}
 .daily-details table{margin-top:8px}
+.daily-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px}
+.daily-cols .daily-tbl{font-size:11px}
+.daily-cols .daily-tbl th{font-size:9px;padding:3px 2px}
+.daily-cols .daily-tbl td{padding:5px 2px}
+.daily-accordion{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.daily-accordion .daily-tbl{margin-top:0}
 </style>
 </head>
 <body>
@@ -1160,9 +1167,10 @@ function renderDiarioMensal(){
   const parcDB=parcelasDoMes(diarioYear,diarioMonth);
   const pt=parcDB.reduce((s,r)=>s+netAbsDisp(r),0);
 
-  // Daily table rows (only daySpend = Despesa & cat!==Fixo) -- trocado de calendario p/ tabela em 2026-09-05
+  // Daily table rows (only daySpend = Despesa & cat!==Fixo) -- trocado de calendario p/ tabela em 2026-09-05, 3 colunas em 2026-09-06
   const DOWNAMES=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  let dayRows='';
+  const dayRowsCols=['','',''];
+  const dayChunkSize=Math.ceil(dias/3);
   let dailyReal=0,dailyFut=0,realizedBefore=0,projDays=0;
   for(let d=1;d<=dias;d++){
     const iso=`${diarioYear}-${String(diarioMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -1180,7 +1188,8 @@ function renderDiarioMensal(){
         else{statusTxt='Sem gasto';statusColor='var(--muted)';}
       }
     }else{val=dailyLim;dailyFut+=val;projDays++;rowCls='future';statusTxt='Previsto';statusColor='var(--muted)';}
-    dayRows+=`<tr class="daily-row ${rowCls}"${hasData?` onclick="openDayModal('${iso}','${d} de ${MONTHS[diarioMonth-1]}')"`:''}><td>${d} <span class="daily-dow">${dow}</span></td><td class="daily-val">${fmt(val)}</td><td style="color:${statusColor};font-weight:700">${statusTxt}</td></tr>`;
+    const dayRowHTML=`<tr class="daily-row ${rowCls}"${hasData?` onclick="openDayModal('${iso}','${d} de ${MONTHS[diarioMonth-1]}')"`:''}><td>${d} <span class="daily-dow">${dow}</span></td><td class="daily-val">${fmt(val)}</td><td style="color:${statusColor};font-weight:700">${statusTxt}</td></tr>`;
+    dayRowsCols[Math.min(2,Math.floor((d-1)/dayChunkSize))]+=dayRowHTML;
   }
 
   const totalDesp=ft+pt+dailyReal;
@@ -1303,7 +1312,7 @@ function renderDiarioMensal(){
       </div>
       <details class="daily-details">
         <summary>Ver todos os dias (${dias} dias)</summary>
-        <table class="daily-tbl"><thead><tr><th>Dia</th><th>Gasto</th><th>Status</th></tr></thead><tbody>${dayRows}</tbody></table>
+        <div class="daily-cols">${dayRowsCols.map(rows=>`<table class="daily-tbl"><thead><tr><th>Dia</th><th>Gasto</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`).join('')}</div>
       </details>
     </div>
     <div class="card"><div class="card-title">Gasto acumulado — dia a dia${tipBtn('m_acum','Gasto acumulado — dia a dia','<div class="tip-formula"><b>Real</b> = Σ gastos diários acumulados até hoje (tipo Despesa, categoria ≠ Fixo)</div><div class="tip-formula"><b>Tendência</b> = gasto acumulado até hoje + (limite diário × dias restantes no mês)</div><div class="tip-formula"><b>Limite</b> = limite diário × dia do mês (linha reta de referência)</div><div class="tip-src">Limite diário: aba Planned, linha Diário (padrão R$60). Tendência aparece somente no mês atual.</div>')}</div><div class="chart-box" style="height:200px"><canvas id="ch-diario-acum"></canvas></div><div style="font-size:10px;color:var(--muted);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap"><span><span style="color:var(--mid)">●</span> Real</span>${isCurMonth?'<span><span style="color:var(--orange)">●</span> Tendência</span>':''}<span><span style="color:rgba(0,0,0,.35)">●</span> Limite</span></div></div>`;
@@ -1341,13 +1350,14 @@ function openDayModal(iso,label){
   document.getElementById('day-modal').classList.remove('hidden');
 }
 function closeDayModal(e){if(e.target===document.getElementById('day-modal'))document.getElementById('day-modal').classList.add('hidden');}
-function buildDailyTableRows(year,month){
+function buildDailyTableColsHTML(year,month){
   const dias=daysInMonth(year,month);
   const todayStr=todayISO();
   const today=new Date();
   const dailyLim=plannedDiario();
   const DOWNAMES=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  let rows='';
+  const cols=['','',''];
+  const chunkSize=Math.ceil(dias/3);
   for(let d=1;d<=dias;d++){
     const iso=`${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday=iso===todayStr;
@@ -1363,14 +1373,10 @@ function buildDailyTableRows(year,month){
         else{statusTxt='Sem gasto';statusColor='var(--muted)';}
       }
     }else{val=dailyLim;rowCls='future';statusTxt='Previsto';statusColor='var(--muted)';}
-    rows+=`<tr class="daily-row ${rowCls}"${hasData?` onclick="openDayModal('${iso}','${d} de ${MONTHS[month-1]}')"`:''}><td>${d} <span class="daily-dow">${dow}</span></td><td class="daily-val">${fmt(val)}</td><td style="color:${statusColor};font-weight:700">${statusTxt}</td></tr>`;
+    const rowHTML=`<tr class="daily-row ${rowCls}"${hasData?` onclick="openDayModal('${iso}','${d} de ${MONTHS[month-1]}')"`:''}><td>${d} <span class="daily-dow">${dow}</span></td><td class="daily-val">${fmt(val)}</td><td style="color:${statusColor};font-weight:700">${statusTxt}</td></tr>`;
+    cols[Math.min(2,Math.floor((d-1)/chunkSize))]+=rowHTML;
   }
-  return rows;
-}
-function openMonthDayModal(year,month){
-  document.getElementById('modal-title').textContent=MONTHS[month-1]+' '+year+' — dia a dia';
-  document.getElementById('modal-body').innerHTML=`<table class="daily-tbl"><thead><tr><th>Dia</th><th>Gasto</th><th>Status</th></tr></thead><tbody>${buildDailyTableRows(year,month)}</tbody></table>`;
-  document.getElementById('day-modal').classList.remove('hidden');
+  return `<div class="daily-cols">`+cols.map(rows=>`<table class="daily-tbl"><thead><tr><th>Dia</th><th>Gasto</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`).join('')+`</div>`;
 }
 function renderDiarioAnual(){
   const year=diarioYear;const today=new Date();
@@ -1449,12 +1455,13 @@ function renderDiarioAnual(){
       const projTot=realizedPart+dailyLim*projDaysM;
       const isProjM=!isPastM(m);
       const diaColor=projTot>dailyLim*diasM?'var(--red)':'var(--mid)';
-      diaCells.push(`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="cursor:pointer" onclick="openMonthDayModal(${year},${m})">${projTot>0?`<span class="ay-v" style="color:${diaColor}${isProjM?';opacity:.55;font-style:italic':''}">${fmtK(projTot)}</span>`:'<span class="ay-dash">—</span>'}</div>`);
+      diaCells.push(`<div class="ay-cell${isCurM(m)?' ay-cur':''}">${projTot>0?`<span class="ay-v" style="color:${diaColor}${isProjM?';opacity:.55;font-style:italic':''}">${fmtK(projTot)}</span>`:'<span class="ay-dash">—</span>'}</div>`);
       overCells.push(`<div class="ay-cell ay-alt${isCurM(m)?' ay-cur':''}">${nOver>0?`<span class="ay-v" style="color:var(--red)">${nOver}</span>`:'<span class="ay-dash">—</span>'}</div>`);
     }
     const diaRow=`<div class="ay-lbl" style="font-size:10px">Dia a Dia</div>`+mList.map(m=>diaCells[m-1]).join('');
     const overRow=`<div class="ay-lbl ay-alt" style="font-size:10px">Dias acima do limite</div>`+mList.map(m=>overCells[m-1]).join('');
-    hmHTML=`<div class="ay-grid" style="grid-template-columns:${gridCols}">${gridHdr}${diaRow}${overRow}</div>`;
+    const diaAccordion=`<div class="daily-accordion">`+mList.map(m=>`<details class="daily-details"><summary>${MONTHS[m-1]}</summary>${buildDailyTableColsHTML(year,m)}</details>`).join('')+`</div>`;
+    hmHTML=`<div class="ay-grid" style="grid-template-columns:${gridCols}">${gridHdr}${diaRow}${overRow}</div>${diaAccordion}`;
   }
   let runEcon=0;const econAcum={};
   for(let m=1;m<=12;m++){runEcon+=incomeForMonth(year,m)-totalExpEstimado(m);econAcum[m]=runEcon;}
@@ -1495,7 +1502,7 @@ function renderDiarioAnual(){
     <div class="ay-section"><div class="ay-sec-title">Entradas</div><div class="ay-grid" style="grid-template-columns:${gridCols}">${gridHdr}<div class="ay-lbl"></div>${entCells}</div></div>
     <div class="ay-section"><div class="ay-sec-title">Gastos Fixos</div>${fixoNomes.length?`<div class="ay-grid" style="grid-template-columns:${gridCols}">${gridHdr}${fixoGridInner}</div>`:`<div class="ay-sec-empty">Nenhum fixo em ${year}</div>`}</div>
     <div class="ay-section"><div class="ay-sec-title">Parcelas</div>${parcNomes.length?`<div class="ay-grid" style="grid-template-columns:${gridCols}">${gridHdr}${parcGridInner}</div>`:`<div class="ay-sec-empty">Nenhuma parcela em ${year}</div>`}</div>
-    <div class="ay-section"><div class="ay-sec-title">Diário <span style="font-weight:400;font-size:10px;color:var(--muted);text-transform:none">(clique no mês p/ ver todos os dias)</span></div>${hmHTML}</div>
+    <div class="ay-section"><div class="ay-sec-title">Diário</div>${hmHTML}</div>
     <div class="ay-section"><div class="ay-sec-title">Indicadores</div><div class="ay-grid" style="grid-template-columns:${gridCols}">${gridHdr}${indCells}</div></div>
     ${movCardHTML}
     <div class="sum-grid-3" style="margin-top:4px;margin-bottom:14px">
