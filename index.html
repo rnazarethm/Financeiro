@@ -104,6 +104,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .cal-val{font-size:11px;opacity:.85;margin-top:3px;font-weight:600}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:200;display:flex;align-items:flex-end;justify-content:center}
 .modal-overlay.hidden{display:none}
+.hidden{display:none}
 .modal{background:var(--card);border-radius:16px 16px 0 0;width:100%;max-width:980px;padding:20px;max-height:75vh;overflow-y:auto}
 .modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px}
 .modal-title{font-size:16px;font-weight:700;margin-bottom:14px;color:var(--dark)}
@@ -433,6 +434,13 @@ svg.ic{vertical-align:-3px}
     </div>
     <!-- LANÇAR -->
     <div id="screen-lancar" class="screen">
+      <div class="card" id="import-card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="card-title" style="margin-bottom:0">Importar extrato</div>
+          <button class="btn btn-outline btn-sm" onclick="toggleImportPanel()">Importar CSV</button>
+        </div>
+        <div id="import-panel" class="hidden" style="margin-top:12px"></div>
+      </div>
       <div class="card">
         <div class="card-title">Tipo de lançamento</div>
         <div class="tsel">
@@ -1687,6 +1695,128 @@ async function lancarTransferencia(){
   document.getElementById('l-desc').value='';
   await loadAllData();
 }
+
+// ══════════════════════════════════════════════
+// IMPORTAR EXTRATO (CSV) -- leitor Nubank cartao, 2026-09-08
+// Fica em "categorizacao pendente" (cat/sub vazios) ate o usuario categorizar em Lancamentos.
+// ══════════════════════════════════════════════
+let _importParsed=[];
+function toggleImportPanel(){
+  const p=document.getElementById('import-panel');
+  p.classList.toggle('hidden');
+  if(!p.classList.contains('hidden')&&!p.dataset.init){
+    p.dataset.init='1';
+    p.innerHTML=`<div class="fg"><label class="fl">Fatura do cartão Nubank (CSV)</label><input type="file" accept=".csv" id="imp-file" class="fi" onchange="handleImportFile(event)"></div><div id="imp-review"></div>`;
+  }
+}
+function parseCSVLine(line){
+  const out=[];let cur='';let inQ=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(inQ){
+      if(ch==='"'){if(line[i+1]==='"'){cur+='"';i++;}else{inQ=false;}}
+      else cur+=ch;
+    }else{
+      if(ch==='"')inQ=true;
+      else if(ch===','){out.push(cur);cur='';}
+      else cur+=ch;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+function parseNubankCartaoCSV(text){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim().length);
+  const rows=[];
+  for(let i=1;i<lines.length;i++){
+    const cols=parseCSVLine(lines[i]);
+    if(cols.length<3)continue;
+    const dataISO=(cols[0]||'').trim();
+    const title=(cols[1]||'').trim();
+    let amtStr=(cols[2]||'').trim();
+    if(!dataISO||!title||!amtStr)continue;
+    const isNeg=/^-/.test(amtStr.replace(/\s/g,''));
+    amtStr=amtStr.replace(/^-\s*/,'').replace(/\./g,'').replace(',','.');
+    let amt=parseFloat(amtStr);
+    if(isNaN(amt))continue;
+    if(isNeg)amt=-amt;
+    const pm=title.match(/^(.*)\s-\s*Parcela\s+(\d+)\/(\d+)\s*$/i);
+    let tipoDefault='Despesa',desc=title;
+    if(pm){desc=pm[1].trim();tipoDefault='Parcela';}
+    rows.push({dataISO,desc,amt,tipoDefault,isCredit:amt<0});
+  }
+  return rows;
+}
+function handleImportFile(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      _importParsed=parseNubankCartaoCSV(ev.target.result);
+      if(!_importParsed.length){toast('Nenhuma linha reconhecida no arquivo');return;}
+      renderImportReview();
+    }catch(err){toast('Erro ao ler o CSV: '+err.message);}
+  };
+  reader.readAsText(file,'utf-8');
+}
+function isImportDuplicate(dataISO,absVal){
+  return allData.some(r=>r.dataISO===dataISO&&Math.abs(Math.abs(r.valor)-absVal)<0.01);
+}
+function renderImportReview(){
+  const acctOpts=accountOptions();
+  const nubankMatch=activeAccounts().find(a=>/nubank/i.test(a.nome)&&a.tipo!=='Investimento');
+  const rowsHTML=_importParsed.map((r,i)=>{
+    const absVal=Math.abs(r.amt);
+    const dup=isImportDuplicate(r.dataISO,absVal);
+    const checked=(!r.isCredit&&!dup)?'checked':'';
+    const warns=[];
+    if(r.isCredit)warns.push('<span style="color:var(--orange)">possível pagamento/estorno</span>');
+    if(dup)warns.push('<span style="color:var(--red)">possível duplicata</span>');
+    return`<tr>
+      <td><input type="checkbox" id="imp-inc-${i}" ${checked}></td>
+      <td class="td-muted">${isoToBR(r.dataISO)}</td>
+      <td><input class="fi" style="font-size:12px;padding:4px 6px" id="imp-desc-${i}" value="${r.desc.replace(/"/g,'&quot;')}"></td>
+      <td class="td-r">${r.isCredit?'+':'−'}${fmt(absVal)}</td>
+      <td><select class="fs" style="font-size:12px;padding:4px" id="imp-tipo-${i}">
+        <option value="Despesa"${r.tipoDefault==='Despesa'&&!r.isCredit?' selected':''}>Despesa</option>
+        <option value="Parcela"${r.tipoDefault==='Parcela'?' selected':''}>Parcela</option>
+        <option value="Receita"${r.isCredit?' selected':''}>Receita</option>
+      </select></td>
+      <td style="font-size:10px">${warns.join('<br>')}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('imp-review').innerHTML=`
+    <div class="fg"><label class="fl">Conta</label><select class="fs" id="imp-conta">${acctOpts}</select></div>
+    <div style="overflow-x:auto"><table class="daily-tbl"><thead><tr><th></th><th>Data</th><th>Descrição</th><th>Valor</th><th>Tipo</th><th>Aviso</th></tr></thead><tbody>${rowsHTML}</tbody></table></div>
+    <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="confirmImport()">Importar selecionados</button>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px">Categoria fica em aberto — categorize depois em Lançamentos (filtro "⚠ Sem categoria").</div>`;
+  if(nubankMatch){const sel=document.getElementById('imp-conta');if(sel)sel.value=nubankMatch.nome;}
+}
+async function confirmImport(){
+  const conta=document.getElementById('imp-conta').value;
+  if(!conta){toast('Selecione a conta');return;}
+  const moeda=getMoedaConta(conta);
+  const rows=[];
+  _importParsed.forEach((r,i)=>{
+    const chk=document.getElementById('imp-inc-'+i);
+    if(!chk||!chk.checked)return;
+    const descEl=document.getElementById('imp-desc-'+i);
+    const desc=(descEl&&descEl.value?descEl.value:r.desc).trim();
+    const tipo=document.getElementById('imp-tipo-'+i).value;
+    const absVal=Math.abs(r.amt);
+    const valor=tipo==='Receita'?absVal:-absVal;
+    const dataBR=isoToBR(r.dataISO);
+    rows.push([valor,moeda,dataBR,desc,conta,tipo,'','','',genId()]);
+  });
+  if(!rows.length){toast('Nada selecionado');return;}
+  const btn=event.target;btn.disabled=true;btn.textContent='Importando...';
+  await shAppend('Cashflow!A:J',rows);
+  toast(`✓ ${rows.length} lançamentos importados — categorize em Lançamentos`);
+  const panel=document.getElementById('import-panel');
+  panel.classList.add('hidden');panel.innerHTML='';panel.dataset.init='';
+  _importParsed=[];
+  await loadAllData();
+}
 // ══════════════════════════════════════════════════════
 // SCREEN: DASHBOARD
 // ══════════════════════════════════════════════════════
@@ -2117,8 +2247,9 @@ function initLancamentosFilters(){
   anos.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;ltAno.appendChild(o);});
   const curY=new Date().getFullYear();if(anos.includes(curY))ltAno.value=curY;
   const cats=[...new Set(allData.map(r=>r.cat))].filter(Boolean).sort();
+  const pendCount=allData.filter(r=>!r.cat).length;
   const ltCat=document.getElementById('lt-cat');
-  ltCat.innerHTML='<option value="">Todas as categorias</option>';
+  ltCat.innerHTML='<option value="">Todas as categorias</option>'+(pendCount?`<option value="__SEM_CAT__">⚠ Sem categoria (${pendCount})</option>`:'');
   cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;ltCat.appendChild(o);});
   const contas=[...new Set(allData.map(r=>r.conta))].filter(Boolean).sort();
   const ltConta=document.getElementById('lt-conta');
@@ -2140,7 +2271,8 @@ function renderLancamentos(){
   let data=[...allData];
   if(ano)data=data.filter(r=>r.ano===parseInt(ano));
   if(mes)data=data.filter(r=>r.nMes===parseInt(mes));
-  if(cat)data=data.filter(r=>r.cat===cat);
+  if(cat==='__SEM_CAT__')data=data.filter(r=>!r.cat);
+  else if(cat)data=data.filter(r=>r.cat===cat);
   if(tipo)data=data.filter(r=>r.tipo===tipo);
   if(conta)data=data.filter(r=>r.conta===conta);
   if(q)data=data.filter(r=>(r.det+r.cat+r.subcat+r.conta).toLowerCase().includes(q));
