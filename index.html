@@ -537,6 +537,7 @@ svg.ic{vertical-align:-3px}
       <button class="btn btn-primary" style="flex:1" onclick="saveEditLancamento()">✓ Salvar</button>
       <button class="btn btn-outline" onclick="document.getElementById('ed-modal').classList.add('hidden')">Cancelar</button>
     </div>
+    <button class="btn btn-outline" style="width:100%;margin-top:8px;color:var(--red);border-color:rgba(192,57,43,.3)" onclick="excluirLancamento()">🗑 Excluir</button>
   </div>
 </div>
 <!-- DASH MODAL -->
@@ -729,6 +730,19 @@ async function shUpdate(range,values){
 }
 async function shClear(range){
   await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${APP.spreadsheetId}/values/${encodeURIComponent(range)}:clear`,{method:'POST',headers:{Authorization:`Bearer ${token}`}});
+}
+async function getSheetId(title){
+  const r=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${APP.spreadsheetId}?fields=sheets.properties`,{headers:{Authorization:`Bearer ${token}`}});
+  const j=await r.json();
+  const s=(j.sheets||[]).find(x=>x.properties.title===title);
+  return s?s.properties.sheetId:null;
+}
+// Exclui a linha de verdade (desloca as de baixo pra cima) -- nao so limpa o conteudo,
+// pra planilha nao acumular linhas em branco (usuario confere a planilha direto as vezes).
+async function shDeleteRow(title,rowIndex1based){
+  const sheetId=await getSheetId(title);
+  if(sheetId==null)return;
+  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${APP.spreadsheetId}:batchUpdate`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({requests:[{deleteDimension:{range:{sheetId,dimension:'ROWS',startIndex:rowIndex1based-1,endIndex:rowIndex1based}}}]})});
 }
 async function shMeta(){
   const r=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${APP.spreadsheetId}?fields=sheets.properties.title`,{headers:{Authorization:`Bearer ${token}`}});
@@ -2355,6 +2369,30 @@ function updateEdSubcats(selectVal){
   const allSubs=[...new Set([...defSubs,...dbSubs,...customSubs])].sort();
   const val=selectVal||edSub.value;
   edSub.innerHTML='<option value="">—</option>'+allSubs.map(s=>`<option value="${s}"${val===s?' selected':''}>${s}</option>`).join('');
+}
+// Excluir lancamento -- pendencia registrada em 2026-09-05, ver MEMORY.md.
+// Transferencia tem 2 pernas vinculadas por RefId: exclui as duas juntas.
+// Reembolso vinculado a uma Despesa (RefId=id da despesa): so avisa, nao bloqueia --
+// o gasto vira "reembolso solto" do mes (fallback ja existente em reembSoltosMes()).
+async function excluirLancamento(){
+  const r=allData.find(d=>d._row===_editRow);
+  if(!r){toast('Lançamento não encontrado');return;}
+  let msg=`Excluir "${r.det}" (${fmtV(Math.abs(r.valor),r.moeda,r.ano,r.nMes)})?`;
+  let pairRow=null;
+  if(isTransf(r)){
+    const pair=allData.find(x=>x.id&&r.refId&&x.id===r.refId);
+    if(pair){pairRow=pair._row;msg=`Isso vai excluir as DUAS pernas dessa transferência (origem e destino). Confirma?`;}
+  }else if(isDespesa(r)&&r.id){
+    const linked=allData.filter(x=>isReembolso(x)&&x.refId===r.id);
+    if(linked.length)msg+=`\n\nAtenção: ${linked.length} reembolso(s) vinculado(s) a este gasto vão ficar "soltos" (sem gasto associado).`;
+  }
+  if(!confirm(msg))return;
+  const btn=event.target;btn.disabled=true;btn.textContent='Excluindo...';
+  const rowsToDelete=[_editRow,...(pairRow?[pairRow]:[])].sort((a,b)=>b-a);
+  for(const row of rowsToDelete)await shDeleteRow('Cashflow',row);
+  toast('✓ Excluído');
+  document.getElementById('ed-modal').classList.add('hidden');
+  await loadAllData();
 }
 async function saveEditLancamento(){
   const dataVal=document.getElementById('ed-data').value;
