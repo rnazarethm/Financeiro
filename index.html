@@ -1759,22 +1759,30 @@ function handleImportFile(e){
   };
   reader.readAsText(file,'utf-8');
 }
+// Duplicata: a descricao do usuario nunca bate com a da fatura (nomes pessoais vs. nome do
+// estabelecimento) -- so valor eh confiavel. Data da fatura tambem costuma ficar 1-2 dias
+// diferente da data que o usuario lancou (comparacao real feita em 2026-09-05, ver
+// analise-duplicatas-2026-09-05.md). Por isso: valor (tolerancia 2 centavos p/ arredondamento)
+// + janela de +-3 dias p/ Despesa; valor + mesmo mes/ano p/ Parcela (sem exigir dia proximo).
 function isImportDuplicate(dataISO,absVal){
-  return allData.some(r=>r.dataISO===dataISO&&Math.abs(Math.abs(r.valor)-absVal)<0.01);
+  const d0=new Date(dataISO+'T00:00:00');
+  return allData.some(r=>{
+    if(!r.dataISO)return false;
+    if(Math.abs(Math.abs(r.valor)-absVal)>0.02)return false;
+    const diffDays=Math.abs((new Date(r.dataISO+'T00:00:00')-d0)/86400000);
+    return diffDays<=3;
+  });
 }
-// Parcela: o lancamento manual ja cria todos os meses de uma vez (dia 1, mesma descricao).
-// A fatura mostra 1 parcela por mes, com a data real da cobranca -- nao bate com a checagem
-// de data+valor acima. Aqui checa se ja existe uma Parcela com essa descricao no mesmo mes/ano.
-function isParcelaJaLancada(desc,dataISO){
+function isParcelaJaLancada(absVal,dataISO){
   const[y,m]=dataISO.split('-').map(Number);
-  return allData.some(r=>r.tipo==='Parcela'&&r.det===desc&&r.ano===y&&r.nMes===m);
+  return allData.some(r=>r.tipo==='Parcela'&&r.ano===y&&r.nMes===m&&Math.abs(Math.abs(r.valor)-absVal)<=0.02);
 }
 function renderImportReview(){
   const acctOpts=accountOptions();
   const nubankMatch=activeAccounts().find(a=>/nubank/i.test(a.nome)&&a.tipo!=='Investimento');
   const rowsHTML=_importParsed.map((r,i)=>{
     const absVal=Math.abs(r.amt);
-    const dup=r.tipoDefault==='Parcela'?isParcelaJaLancada(r.desc,r.dataISO):isImportDuplicate(r.dataISO,absVal);
+    const dup=r.tipoDefault==='Parcela'?isParcelaJaLancada(absVal,r.dataISO):isImportDuplicate(r.dataISO,absVal);
     const checked=(!r.isCredit&&!dup)?'checked':'';
     const warns=[];
     if(r.isCredit)warns.push('<span style="color:var(--orange)">possível pagamento/estorno</span>');
