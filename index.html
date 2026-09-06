@@ -370,6 +370,12 @@ svg.ic{vertical-align:-3px}
 .daily-row.today{background:rgba(31,70,51,.08);font-weight:700}
 .daily-row.future{opacity:.5;font-style:italic}
 .daily-row[onclick]{cursor:pointer}
+.daily-details{margin-top:4px}
+.daily-details summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--dark);padding:9px 10px;background:var(--bg);border-radius:8px;list-style:none;user-select:none}
+.daily-details summary::-webkit-details-marker{display:none}
+.daily-details summary::before{content:'▸ ';display:inline-block;transition:transform .15s}
+.daily-details[open] summary::before{transform:rotate(90deg)}
+.daily-details table{margin-top:8px}
 </style>
 </head>
 <body>
@@ -1295,7 +1301,10 @@ function renderDiarioMensal(){
         <span>Previsto: <b style="color:var(--dark)">${fmt(dailyReal+dailyFut)}</b></span>
         <span>Dias rest.: <b>${projDays}</b></span>
       </div>
-      <table class="daily-tbl"><thead><tr><th>Dia</th><th>Gasto</th><th>Status</th></tr></thead><tbody>${dayRows}</tbody></table>
+      <details class="daily-details">
+        <summary>Ver todos os dias (${dias} dias)</summary>
+        <table class="daily-tbl"><thead><tr><th>Dia</th><th>Gasto</th><th>Status</th></tr></thead><tbody>${dayRows}</tbody></table>
+      </details>
     </div>
     <div class="card"><div class="card-title">Gasto acumulado — dia a dia${tipBtn('m_acum','Gasto acumulado — dia a dia','<div class="tip-formula"><b>Real</b> = Σ gastos diários acumulados até hoje (tipo Despesa, categoria ≠ Fixo)</div><div class="tip-formula"><b>Tendência</b> = gasto acumulado até hoje + (limite diário × dias restantes no mês)</div><div class="tip-formula"><b>Limite</b> = limite diário × dia do mês (linha reta de referência)</div><div class="tip-src">Limite diário: aba Planned, linha Diário (padrão R$60). Tendência aparece somente no mês atual.</div>')}</div><div class="chart-box" style="height:200px"><canvas id="ch-diario-acum"></canvas></div><div style="font-size:10px;color:var(--muted);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap"><span><span style="color:var(--mid)">●</span> Real</span>${isCurMonth?'<span><span style="color:var(--orange)">●</span> Tendência</span>':''}<span><span style="color:rgba(0,0,0,.35)">●</span> Limite</span></div></div>`;
   destroyChart('diario-acum');
@@ -1332,6 +1341,37 @@ function openDayModal(iso,label){
   document.getElementById('day-modal').classList.remove('hidden');
 }
 function closeDayModal(e){if(e.target===document.getElementById('day-modal'))document.getElementById('day-modal').classList.add('hidden');}
+function buildDailyTableRows(year,month){
+  const dias=daysInMonth(year,month);
+  const todayStr=todayISO();
+  const today=new Date();
+  const dailyLim=plannedDiario();
+  const DOWNAMES=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  let rows='';
+  for(let d=1;d<=dias;d++){
+    const iso=`${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday=iso===todayStr;
+    const isPast=new Date(year,month-1,d)<=today;
+    const dow=DOWNAMES[new Date(year,month-1,d).getDay()];
+    let val=0,hasData=false,statusTxt='',statusColor='var(--muted)',rowCls='';
+    if(isPast){
+      val=daySpend(iso);hasData=val>0;
+      if(isToday){rowCls='today';statusTxt='Hoje';statusColor='var(--dark)';}
+      else{
+        if(val>dailyLim){statusTxt='Acima';statusColor='var(--red)';}
+        else if(val>0){statusTxt='Ok';statusColor='var(--mid)';}
+        else{statusTxt='Sem gasto';statusColor='var(--muted)';}
+      }
+    }else{val=dailyLim;rowCls='future';statusTxt='Previsto';statusColor='var(--muted)';}
+    rows+=`<tr class="daily-row ${rowCls}"${hasData?` onclick="openDayModal('${iso}','${d} de ${MONTHS[month-1]}')"`:''}><td>${d} <span class="daily-dow">${dow}</span></td><td class="daily-val">${fmt(val)}</td><td style="color:${statusColor};font-weight:700">${statusTxt}</td></tr>`;
+  }
+  return rows;
+}
+function openMonthDayModal(year,month){
+  document.getElementById('modal-title').textContent=MONTHS[month-1]+' '+year+' — dia a dia';
+  document.getElementById('modal-body').innerHTML=`<table class="daily-tbl"><thead><tr><th>Dia</th><th>Gasto</th><th>Status</th></tr></thead><tbody>${buildDailyTableRows(year,month)}</tbody></table>`;
+  document.getElementById('day-modal').classList.remove('hidden');
+}
 function renderDiarioAnual(){
   const year=diarioYear;const today=new Date();
   const dailyLim=plannedDiario();
@@ -1409,7 +1449,7 @@ function renderDiarioAnual(){
       const projTot=realizedPart+dailyLim*projDaysM;
       const isProjM=!isPastM(m);
       const diaColor=projTot>dailyLim*diasM?'var(--red)':'var(--mid)';
-      diaCells.push(`<div class="ay-cell${isCurM(m)?' ay-cur':''}">${projTot>0?`<span class="ay-v" style="color:${diaColor}${isProjM?';opacity:.55;font-style:italic':''}">${fmtK(projTot)}</span>`:'<span class="ay-dash">—</span>'}</div>`);
+      diaCells.push(`<div class="ay-cell${isCurM(m)?' ay-cur':''}" style="cursor:pointer" onclick="openMonthDayModal(${year},${m})">${projTot>0?`<span class="ay-v" style="color:${diaColor}${isProjM?';opacity:.55;font-style:italic':''}">${fmtK(projTot)}</span>`:'<span class="ay-dash">—</span>'}</div>`);
       overCells.push(`<div class="ay-cell ay-alt${isCurM(m)?' ay-cur':''}">${nOver>0?`<span class="ay-v" style="color:var(--red)">${nOver}</span>`:'<span class="ay-dash">—</span>'}</div>`);
     }
     const diaRow=`<div class="ay-lbl" style="font-size:10px">Dia a Dia</div>`+mList.map(m=>diaCells[m-1]).join('');
@@ -1455,7 +1495,7 @@ function renderDiarioAnual(){
     <div class="ay-section"><div class="ay-sec-title">Entradas</div><div class="ay-grid" style="grid-template-columns:${gridCols}">${gridHdr}<div class="ay-lbl"></div>${entCells}</div></div>
     <div class="ay-section"><div class="ay-sec-title">Gastos Fixos</div>${fixoNomes.length?`<div class="ay-grid" style="grid-template-columns:${gridCols}">${gridHdr}${fixoGridInner}</div>`:`<div class="ay-sec-empty">Nenhum fixo em ${year}</div>`}</div>
     <div class="ay-section"><div class="ay-sec-title">Parcelas</div>${parcNomes.length?`<div class="ay-grid" style="grid-template-columns:${gridCols}">${gridHdr}${parcGridInner}</div>`:`<div class="ay-sec-empty">Nenhuma parcela em ${year}</div>`}</div>
-    <div class="ay-section"><div class="ay-sec-title">Diário</div>${hmHTML}</div>
+    <div class="ay-section"><div class="ay-sec-title">Diário <span style="font-weight:400;font-size:10px;color:var(--muted);text-transform:none">(clique no mês p/ ver todos os dias)</span></div>${hmHTML}</div>
     <div class="ay-section"><div class="ay-sec-title">Indicadores</div><div class="ay-grid" style="grid-template-columns:${gridCols}">${gridHdr}${indCells}</div></div>
     ${movCardHTML}
     <div class="sum-grid-3" style="margin-top:4px;margin-bottom:14px">
