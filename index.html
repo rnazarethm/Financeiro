@@ -455,6 +455,13 @@ svg.ic{vertical-align:-3px}
       <div class="card" id="lancar-form-card">
         <!-- preenchido por JS -->
       </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <div class="card-title" style="margin-bottom:0">Lançamentos desta sessão</div>
+          <div id="lancar-session-count" style="font-size:11px;color:var(--muted)"></div>
+        </div>
+        <div id="lancar-session-body"></div>
+      </div>
     </div>
     <!-- DASHBOARD -->
     <div id="screen-dashboard" class="screen">
@@ -601,6 +608,9 @@ let displayCurrency='BRL';
 let activeScreen='diario', dashTab='geral', diarioView='mensal';
 let diarioMonth=new Date().getMonth()+1, diarioYear=new Date().getFullYear();
 let lancarType='despesa', ltSort={col:'data',dir:-1};
+// Lista da sessao em Lancar (2026-09-06): so na memoria, zera ao trocar de tela (ver navigate()).
+// Guarda so o id -- a exibicao sempre le o registro atual de allData (reflete edicao/exclusao sozinha).
+let sessionEntryIds=[], sessionEditingId=null;
 let simYear=new Date().getFullYear(), activeSimId=null;
 let annualMobileStart=Math.max(1,new Date().getMonth()), simMobileStart=Math.max(1,new Date().getMonth());
 let dashFilters={anos:[],meses:[],cats:[],subcats:[]};
@@ -1576,7 +1586,9 @@ function renderLancarForm(){
     const showParcela=lancarType==='parcela';
     const showData=true;
     const allCats=[...new Set([...Object.keys(CATS),...despesas().map(r=>r.cat),...Object.keys(getCustomCats())])].filter(Boolean).sort();
+    const editBanner=(sessionEditingId&&(lancarType==='despesa'||lancarType==='receita'))?`<div style="display:flex;justify-content:space-between;align-items:center;background:rgba(232,130,30,.12);color:#a85c0f;font-size:12px;font-weight:600;padding:8px 10px;border-radius:8px;margin-bottom:12px"><span>✎ Editando um lançamento desta sessão</span><span style="cursor:pointer;text-decoration:underline" onclick="cancelSessionEdit()">cancelar</span></div>`:'';
     card.innerHTML=`
+      ${editBanner}
       <div class="fg"><label class="fl">Conta</label><select class="fs" id="l-conta">${accountOptions()}</select></div>
       <div class="fi-row">
         <div class="fg"><label class="fl">Valor</label><input class="fi" id="l-valor" type="number" step="0.01" placeholder="0,00">${lancarType==='ajuste'?'<div style="font-size:10px;color:var(--muted);margin-top:3px">Positivo aumenta o saldo · Negativo diminui</div>':''}</div>
@@ -1598,12 +1610,12 @@ function renderLancarForm(){
         </div>
       </div>`:``}
       ${showParcela?`<div class="fi-row"><div class="fg"><label class="fl">Nº de parcelas</label><input class="fi" id="l-nparcelas" type="number" min="1" placeholder="Ex: 12"></div><div class="fg"><label class="fl">Nome da parcela</label><input class="fi" id="l-parcela-nome" placeholder="Ex: Implante"></div></div>`:''}
-      <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="lancarGasto()">✓ Registrar</button>`;
+      <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="lancarGasto()">${sessionEditingId&&(lancarType==='despesa'||lancarType==='receita')?'✓ Salvar edição':'✓ Registrar'}</button>`;
     if(lancarType!=='receita')updateSubcatsL();
   }
 }
 
-function initLancar(){renderLancarForm();}
+function initLancar(){renderLancarForm();renderSessionList();}
 
 function updateSubcatsL(){
   const cat=document.getElementById('l-cat')?.value||'';
@@ -1649,6 +1661,24 @@ async function lancarGasto(){
   const[ano,mes]=data.split('-').map(Number);
   const dataBR=isoToBR(data);
 
+  // Edicao inline de um item da "lista da sessao" (2026-09-06) -- so p/ despesa/receita (1 linha so).
+  if(sessionEditingId&&(lancarType==='despesa'||lancarType==='receita')){
+    const orig=allData.find(x=>x.id===sessionEditingId);
+    if(!orig){toast('Não encontrado — pode ter sido alterado em Lançamentos');sessionEditingId=null;renderLancarForm();return;}
+    const tipo=lancarType==='receita'?'Receita':'Despesa';
+    let cat='',sub='';
+    if(tipo==='Receita'){cat=document.getElementById('l-rec-cat')?.value||orig.cat;}
+    else{cat=document.getElementById('l-cat').value;if(!cat){toast('Selecione a categoria');return}sub=document.getElementById('l-subcat')?.value||'';}
+    const finalValor=tipo==='Receita'?Math.abs(valor):-Math.abs(valor);
+    const btn=event.target;btn.disabled=true;btn.textContent='Salvando...';
+    await shUpdate(`Cashflow!A${orig._row}:J${orig._row}`,[[finalValor,moeda,dataBR,desc,conta,tipo,cat,sub,orig.refId||'',orig.id]]);
+    toast('✓ Atualizado!');
+    sessionEditingId=null;
+    document.getElementById('l-valor').value='';document.getElementById('l-desc').value='';
+    await loadAllData();renderLancarForm();renderSessionList();
+    return;
+  }
+
   if(lancarType==='reembolso'){
     const targetRow=parseInt(document.getElementById('l-reemb-target')?.value||'');
     const target=allData.find(r=>r._row===targetRow);
@@ -1656,36 +1686,44 @@ async function lancarGasto(){
     if(moeda===target.moeda&&Math.abs(valor)>Math.abs(target.valor)){toast('Reembolso maior que o gasto original');return}
     let targetId=target.id;
     if(!targetId){targetId=genId();await shUpdate(`Cashflow!J${target._row}`,[[targetId]]);}
-    await shAppend('Cashflow!A:J',[[Math.abs(valor),moeda,dataBR,desc,conta,'Reembolso',target.cat,target.subcat,targetId,genId()]]);
+    const newId=genId();
+    await shAppend('Cashflow!A:J',[[Math.abs(valor),moeda,dataBR,desc,conta,'Reembolso',target.cat,target.subcat,targetId,newId]]);
     toast('✓ Reembolso registrado e vinculado!');
     document.getElementById('l-valor').value='';document.getElementById('l-desc').value='';
-    await loadAllData();return;
+    await loadAllData();pushSessionEntry(newId);return;
   }
   if(lancarType==='receita'){
     const recCat=document.getElementById('l-rec-cat')?.value||'Salário';
-    await shAppend('Cashflow!A:J',[[valor,moeda,dataBR,desc,conta,'Receita',recCat,'','',genId()]]);
+    const newId=genId();
+    await shAppend('Cashflow!A:J',[[valor,moeda,dataBR,desc,conta,'Receita',recCat,'','',newId]]);
     toast('✓ Receita registrada!');
+    document.getElementById('l-valor').value='';document.getElementById('l-desc').value='';
+    await loadAllData();pushSessionEntry(newId);return;
   }else if(lancarType==='parcela'){
     const n=parseInt(document.getElementById('l-nparcelas').value)||1;
     const cat=document.getElementById('l-cat').value||'Consumo Pessoal';
     const sub=document.getElementById('l-subcat').value||'';
-    let a=ano,m=mes;const rows=[];
+    let a=ano,m=mes;const rows=[];const newIds=[];
     for(let i=0;i<n;i++){
       const d=`01/${String(m).padStart(2,'0')}/${a}`;
-      rows.push([-valor,moeda,d,desc,conta,'Parcela',cat,sub,'',genId()]);
+      const rid=genId();newIds.push(rid);
+      rows.push([-valor,moeda,d,desc,conta,'Parcela',cat,sub,'',rid]);
       m++;if(m>12){m=1;a++;}
     }
     for(const row of rows)await shAppend('Cashflow!A:J',[row]);
     toast(`✓ Parcela ${n}x registrada!`);
+    document.getElementById('l-valor').value='';document.getElementById('l-desc').value='';
+    await loadAllData();newIds.forEach(id=>pushSessionEntry(id,false));renderSessionList();return;
   }else{
     const cat=document.getElementById('l-cat').value;
     if(!cat){toast('Selecione a categoria');return}
     const sub=document.getElementById('l-subcat')?.value||'';
-    await shAppend('Cashflow!A:J',[[-valor,moeda,dataBR,desc,conta,'Despesa',cat,sub,'',genId()]]);
+    const newId=genId();
+    await shAppend('Cashflow!A:J',[[-valor,moeda,dataBR,desc,conta,'Despesa',cat,sub,'',newId]]);
     toast('✓ Despesa registrada!');
+    document.getElementById('l-valor').value='';document.getElementById('l-desc').value='';
+    await loadAllData();pushSessionEntry(newId);return;
   }
-  document.getElementById('l-valor').value='';document.getElementById('l-desc').value='';
-  await loadAllData();
 }
 
 async function lancarTransferencia(){
@@ -1707,7 +1745,59 @@ async function lancarTransferencia(){
   await shAppend('Cashflow!A:J',[[valorDest,moedaDest,dataBR,desc,dest,'Transferência',sub,'',tId1,tId2]]);
   toast('✓ Transferência registrada!');
   document.getElementById('l-desc').value='';
-  await loadAllData();
+  await loadAllData();pushSessionEntry(tId1,false);pushSessionEntry(tId2,false);renderSessionList();
+}
+
+// Lista da sessao em Lancar (2026-09-06) -- ver globais sessionEntryIds/sessionEditingId.
+function pushSessionEntry(id,doRender){
+  if(!sessionEntryIds.includes(id))sessionEntryIds.push(id);
+  if(doRender!==false)renderSessionList();
+}
+function renderSessionList(){
+  const wrap=document.getElementById('lancar-session-body');
+  if(!wrap)return;
+  const items=sessionEntryIds.map(id=>allData.find(r=>r.id===id)).filter(Boolean);
+  const countEl=document.getElementById('lancar-session-count');
+  if(countEl)countEl.textContent=items.length?`${items.length} ${items.length===1?'item':'itens'}`:'';
+  if(!items.length){wrap.innerHTML='<div style="font-size:12.5px;color:var(--muted);padding:8px 0">Nada lançado ainda nesta sessão.</div>';return;}
+  const editableTipos=['Despesa','Receita'];
+  wrap.innerHTML=`<table class="daily-tbl" style="margin-top:8px"><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th></tr></thead><tbody>
+    ${items.map(e=>{
+      const editable=editableTipos.includes(e.tipo);
+      const isEditing=e.id===sessionEditingId;
+      return`<tr class="daily-row${isEditing?' today':''}"${editable?` onclick="sessionEditClick('${e.id}')"`:''} style="${editable?'cursor:pointer':'opacity:.7'}">
+        <td>${isoToBR(e.dataISO)}</td>
+        <td>${e.det}${!editable?` <span style="font-size:9px;color:var(--muted)">(${e.tipo})</span>`:''}</td>
+        <td>${e.cat||'<span class="td-muted">—</span>'}</td>
+        <td class="daily-val" style="color:${e.valor<0?'var(--red)':'var(--mid)'}">${e.valor<0?'−':'+'}${fmt(Math.abs(e.valor))}</td>
+      </tr>`;
+    }).join('')}
+  </tbody></table><div style="font-size:11px;color:var(--muted);margin-top:6px">Some quando você troca de tela — isso continua registrado em Lançamentos.</div>`;
+}
+function sessionEditClick(id){
+  const r=allData.find(x=>x.id===id);
+  if(!r){toast('Não encontrado — pode ter sido alterado em Lançamentos');return;}
+  if(r.tipo!=='Despesa'&&r.tipo!=='Receita'){toast('Edite esse tipo pela tela Lançamentos');return;}
+  sessionEditingId=id;
+  const typeKey=r.tipo==='Receita'?'receita':'despesa';
+  const btn=document.querySelector(`.tsel .tbtn[onclick^="setLancarType('${typeKey}'"]`);
+  if(btn)setLancarType(typeKey,btn);
+  document.getElementById('l-conta').value=r.conta;
+  document.getElementById('l-valor').value=Math.abs(r.valor);
+  document.getElementById('l-data').value=r.dataISO;
+  document.getElementById('l-desc').value=r.det;
+  if(typeKey==='receita'){
+    const recCat=document.getElementById('l-rec-cat');if(recCat)recCat.value=r.cat;
+  }else{
+    const catSel=document.getElementById('l-cat');
+    if(catSel){catSel.value=r.cat;updateSubcatsL();const subSel=document.getElementById('l-subcat');if(subSel)subSel.value=r.subcat;}
+  }
+  renderSessionList();
+}
+function cancelSessionEdit(){
+  sessionEditingId=null;
+  document.getElementById('l-valor').value='';document.getElementById('l-desc').value='';
+  renderLancarForm();renderSessionList();
 }
 
 // ══════════════════════════════════════════════
@@ -2662,6 +2752,7 @@ async function savePlanned(){
 // NAVIGATION
 // ══════════════════════════════════════════════════════
 function navigate(screen){
+  if(activeScreen==='lancar'&&screen!=='lancar'){sessionEntryIds=[];sessionEditingId=null;}
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nitem').forEach(n=>n.classList.remove('active'));
   document.getElementById(`screen-${screen}`)?.classList.add('active');
