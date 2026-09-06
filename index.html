@@ -381,8 +381,15 @@ svg.ic{vertical-align:-3px}
 .daily-cols .daily-tbl{font-size:11px}
 .daily-cols .daily-tbl th{font-size:9px;padding:3px 2px}
 .daily-cols .daily-tbl td{padding:5px 2px}
-.daily-accordion{margin-top:10px;display:flex;flex-direction:column;gap:6px}
-.daily-accordion .daily-tbl{margin-top:0}
+.agd-scroll{overflow-x:auto;margin-top:8px}
+.agd-tbl{border-collapse:separate;border-spacing:2px;font-size:9px}
+.agd-tbl th{color:var(--muted);font-weight:700;padding:0 2px 3px;text-align:center;min-width:18px}
+.agd-daynum{color:var(--muted);text-align:right;padding-right:4px;font-size:9px;white-space:nowrap}
+.agd-cell,.agd-empty{width:18px;height:18px;border-radius:3px}
+.agd-gray{background:rgba(0,0,0,.08)}
+.agd-green{background:rgba(58,125,68,.6)}
+.agd-red{background:rgba(192,57,43,.7)}
+.agd-cell[onclick]{cursor:pointer}
 </style>
 </head>
 <body>
@@ -1177,18 +1184,18 @@ function renderDiarioMensal(){
     const isToday=iso===todayStr;
     const isPast=new Date(diarioYear,diarioMonth-1,d)<=today;
     const dow=DOWNAMES[new Date(diarioYear,diarioMonth-1,d).getDay()];
-    let val=0,hasData=false,statusTxt='',statusColor='var(--muted)',rowCls='';
+    let val=0,hasData=false,statusColor='var(--muted)',rowCls='';
     if(isPast){
       val=daySpend(iso);dailyReal+=val;hasData=val>0;
-      if(isToday){rowCls='today';projDays++;statusTxt='Hoje';statusColor='var(--dark)';}
+      if(isToday){rowCls='today';projDays++;statusColor='var(--dark)';}
       else{
         realizedBefore+=val;
-        if(val>dailyLim){statusTxt='Acima';statusColor='var(--red)';}
-        else if(val>0){statusTxt='Ok';statusColor='var(--mid)';}
-        else{statusTxt='Sem gasto';statusColor='var(--muted)';}
+        if(val>dailyLim){statusColor='var(--red)';}
+        else if(val>0){statusColor='var(--mid)';}
+        else{statusColor='var(--muted)';}
       }
-    }else{val=dailyLim;dailyFut+=val;projDays++;rowCls='future';statusTxt='Previsto';statusColor='var(--muted)';}
-    const dayRowHTML=`<tr class="daily-row ${rowCls}"${hasData?` onclick="openDayModal('${iso}','${d} de ${MONTHS[diarioMonth-1]}')"`:''}><td>${d} <span class="daily-dow">${dow}</span></td><td class="daily-val">${fmt(val)}</td><td style="color:${statusColor};font-weight:700">${statusTxt}</td></tr>`;
+    }else{val=dailyLim;dailyFut+=val;projDays++;rowCls='future';statusColor='var(--muted)';}
+    const dayRowHTML=`<tr class="daily-row ${rowCls}"${hasData?` onclick="openDayModal('${iso}','${d} de ${MONTHS[diarioMonth-1]}')"`:''}><td>${d} <span class="daily-dow">${dow}</span></td><td class="daily-val" style="color:${statusColor}">${fmt(val)}</td></tr>`;
     dayRowsCols[Math.min(2,Math.floor((d-1)/dayChunkSize))]+=dayRowHTML;
   }
 
@@ -1312,7 +1319,7 @@ function renderDiarioMensal(){
       </div>
       <details class="daily-details">
         <summary>Ver todos os dias (${dias} dias)</summary>
-        <div class="daily-cols">${dayRowsCols.map(rows=>`<table class="daily-tbl"><thead><tr><th>Dia</th><th>Gasto</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`).join('')}</div>
+        <div class="daily-cols">${dayRowsCols.map(rows=>`<table class="daily-tbl"><thead><tr><th>Dia</th><th>Gasto</th></tr></thead><tbody>${rows}</tbody></table>`).join('')}</div>
       </details>
     </div>
     <div class="card"><div class="card-title">Gasto acumulado — dia a dia${tipBtn('m_acum','Gasto acumulado — dia a dia','<div class="tip-formula"><b>Real</b> = Σ gastos diários acumulados até hoje (tipo Despesa, categoria ≠ Fixo)</div><div class="tip-formula"><b>Tendência</b> = gasto acumulado até hoje + (limite diário × dias restantes no mês)</div><div class="tip-formula"><b>Limite</b> = limite diário × dia do mês (linha reta de referência)</div><div class="tip-src">Limite diário: aba Planned, linha Diário (padrão R$60). Tendência aparece somente no mês atual.</div>')}</div><div class="chart-box" style="height:200px"><canvas id="ch-diario-acum"></canvas></div><div style="font-size:10px;color:var(--muted);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap"><span><span style="color:var(--mid)">●</span> Real</span>${isCurMonth?'<span><span style="color:var(--orange)">●</span> Tendência</span>':''}<span><span style="color:rgba(0,0,0,.35)">●</span> Limite</span></div></div>`;
@@ -1350,33 +1357,31 @@ function openDayModal(iso,label){
   document.getElementById('day-modal').classList.remove('hidden');
 }
 function closeDayModal(e){if(e.target===document.getElementById('day-modal'))document.getElementById('day-modal').classList.add('hidden');}
-function buildDailyTableColsHTML(year,month){
-  const dias=daysInMonth(year,month);
+function buildAnnualDayGridHTML(year){
   const todayStr=todayISO();
   const today=new Date();
   const dailyLim=plannedDiario();
-  const DOWNAMES=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  const cols=['','',''];
-  const chunkSize=Math.ceil(dias/3);
-  for(let d=1;d<=dias;d++){
-    const iso=`${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const isToday=iso===todayStr;
-    const isPast=new Date(year,month-1,d)<=today;
-    const dow=DOWNAMES[new Date(year,month-1,d).getDay()];
-    let val=0,hasData=false,statusTxt='',statusColor='var(--muted)',rowCls='';
-    if(isPast){
-      val=daySpend(iso);hasData=val>0;
-      if(isToday){rowCls='today';statusTxt='Hoje';statusColor='var(--dark)';}
-      else{
-        if(val>dailyLim){statusTxt='Acima';statusColor='var(--red)';}
-        else if(val>0){statusTxt='Ok';statusColor='var(--mid)';}
-        else{statusTxt='Sem gasto';statusColor='var(--muted)';}
+  let rows='';
+  for(let d=1;d<=31;d++){
+    let rowCells='';
+    for(let m=1;m<=12;m++){
+      const diasM=daysInMonth(year,m);
+      if(d>diasM){rowCells+='<td class="agd-empty"></td>';continue;}
+      const iso=`${year}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const isToday_=iso===todayStr;
+      const isPastDay=new Date(year,m-1,d)<=today;
+      let cls='agd-gray',clickable=false;
+      if(isPastDay&&!isToday_){
+        const val=daySpend(iso);
+        if(val>dailyLim){cls='agd-red';clickable=true;}
+        else if(val>0){cls='agd-green';clickable=true;}
       }
-    }else{val=dailyLim;rowCls='future';statusTxt='Previsto';statusColor='var(--muted)';}
-    const rowHTML=`<tr class="daily-row ${rowCls}"${hasData?` onclick="openDayModal('${iso}','${d} de ${MONTHS[month-1]}')"`:''}><td>${d} <span class="daily-dow">${dow}</span></td><td class="daily-val">${fmt(val)}</td><td style="color:${statusColor};font-weight:700">${statusTxt}</td></tr>`;
-    cols[Math.min(2,Math.floor((d-1)/chunkSize))]+=rowHTML;
+      rowCells+=`<td class="agd-cell ${cls}"${clickable?` onclick="openDayModal('${iso}','${d} de ${MONTHS[m-1]}')"`:''} title="${d}/${m}/${year}"></td>`;
+    }
+    rows+=`<tr><td class="agd-daynum">${d}</td>${rowCells}</tr>`;
   }
-  return `<div class="daily-cols">`+cols.map(rows=>`<table class="daily-tbl"><thead><tr><th>Dia</th><th>Gasto</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`).join('')+`</div>`;
+  const hdr='<tr><th></th>'+MSHORT.map(n=>`<th>${n}</th>`).join('')+'</tr>';
+  return `<div class="agd-scroll"><table class="agd-tbl"><thead>${hdr}</thead><tbody>${rows}</tbody></table></div>`;
 }
 function renderDiarioAnual(){
   const year=diarioYear;const today=new Date();
@@ -1460,7 +1465,7 @@ function renderDiarioAnual(){
     }
     const diaRow=`<div class="ay-lbl" style="font-size:10px">Dia a Dia</div>`+mList.map(m=>diaCells[m-1]).join('');
     const overRow=`<div class="ay-lbl ay-alt" style="font-size:10px">Dias acima do limite</div>`+mList.map(m=>overCells[m-1]).join('');
-    const diaAccordion=`<div class="daily-accordion">`+mList.map(m=>`<details class="daily-details"><summary>${MONTHS[m-1]}</summary>${buildDailyTableColsHTML(year,m)}</details>`).join('')+`</div>`;
+    const diaAccordion=`<details class="daily-details"><summary>Ver o ano inteiro, dia a dia</summary>${buildAnnualDayGridHTML(year)}</details>`;
     hmHTML=`<div class="ay-grid" style="grid-template-columns:${gridCols}">${gridHdr}${diaRow}${overRow}</div>${diaAccordion}`;
   }
   let runEcon=0;const econAcum={};
