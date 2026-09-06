@@ -2269,21 +2269,33 @@ function openSubcatMonthModal(sub,ano,mes){openDashModal(`${sub} — ${MONTHS[me
 // ══════════════════════════════════════════════════════
 // SCREEN: LANÇAMENTOS
 // ══════════════════════════════════════════════════════
+// initLancamentosFilters roda toda vez que loadAllData() termina (inclusive depois de
+// salvar/categorizar 1 lancamento) -- por isso precisa preservar o filtro que o usuario
+// ja tinha escolhido, senao ele volta pra "sem filtro" toda vez que categoriza algo.
 function initLancamentosFilters(){
-  const anos=[...new Set(allData.map(r=>r.ano))].filter(Boolean).sort();
   const ltAno=document.getElementById('lt-ano');
+  const curAno=ltAno.value;
+  const anos=[...new Set(allData.map(r=>r.ano))].filter(Boolean).sort();
   ltAno.innerHTML='<option value="">Todos os anos</option>';
   anos.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;ltAno.appendChild(o);});
-  const curY=new Date().getFullYear();if(anos.includes(curY))ltAno.value=curY;
+  if(curAno&&anos.includes(parseInt(curAno)))ltAno.value=curAno;
+  else{const curY=new Date().getFullYear();if(anos.includes(curY))ltAno.value=curY;}
+
+  const ltCat=document.getElementById('lt-cat');
+  const curCat=ltCat.value;
   const cats=[...new Set(allData.map(r=>r.cat))].filter(Boolean).sort();
   const pendCount=allData.filter(r=>!r.cat).length;
-  const ltCat=document.getElementById('lt-cat');
   ltCat.innerHTML='<option value="">Todas as categorias</option>'+(pendCount?`<option value="__SEM_CAT__">⚠ Sem categoria (${pendCount})</option>`:'');
   cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;ltCat.appendChild(o);});
-  const contas=[...new Set(allData.map(r=>r.conta))].filter(Boolean).sort();
+  if(curCat==='__SEM_CAT__'&&pendCount)ltCat.value='__SEM_CAT__';
+  else if(curCat&&cats.includes(curCat))ltCat.value=curCat;
+
   const ltConta=document.getElementById('lt-conta');
+  const curConta=ltConta.value;
+  const contas=[...new Set(allData.map(r=>r.conta))].filter(Boolean).sort();
   ltConta.innerHTML='<option value="">Todas as contas</option>';
   contas.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;ltConta.appendChild(o);});
+  if(curConta&&contas.includes(curConta))ltConta.value=curConta;
 }
 
 function renderLancamentos(){
@@ -2346,9 +2358,12 @@ async function saveSnapshotForm(){
 }
 
 let _editRow=null;
+const DEL_BTN_HTML=document.querySelector('#ed-modal [onclick="excluirLancamento()"]')?document.querySelector('#ed-modal [onclick="excluirLancamento()"]').innerHTML:'Excluir';
 function editLancamento(row){
   const r=allData.find(d=>d._row===row);if(!r)return;
   _editRow=row;
+  const delBtn=document.querySelector('#ed-modal [onclick="excluirLancamento()"]');
+  if(delBtn){delBtn.disabled=false;delBtn.innerHTML=DEL_BTN_HTML;}
   document.getElementById('ed-data').value=r.dataISO||'';
   document.getElementById('ed-valor').value=Math.abs(r.valor);
   document.getElementById('ed-desc').value=r.det;
@@ -2392,6 +2407,7 @@ async function excluirLancamento(){
   for(const row of rowsToDelete)await shDeleteRow('Cashflow',row);
   toast('✓ Excluído');
   document.getElementById('ed-modal').classList.add('hidden');
+  btn.disabled=false;btn.innerHTML=DEL_BTN_HTML;
   await loadAllData();
 }
 async function saveEditLancamento(){
